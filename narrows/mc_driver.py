@@ -1,9 +1,10 @@
 #!/usr/bin/env python
-import mc1d
 
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
+
+import mc1d
 
 NUM_PARTICLES = int(1e6)
 NUM_ZONES = 10

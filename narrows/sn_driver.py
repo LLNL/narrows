@@ -1,12 +1,13 @@
 #!/usr/bin/env python
-import sn1d
 
-import os
 import argparse
+import datetime
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import os
 import shutil
-import datetime
+
+import sn1d
 
 mpl.use('TkAgg')
 

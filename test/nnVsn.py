@@ -11,12 +11,12 @@ it is to run Sn?
 '''
 
 import argparse
-import pickle
+from collections import OrderedDict
+import math
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-import math
-from collections import OrderedDict
+import pickle
 
 import analyze
 import driver

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import numpy as np
 import collections
+import numpy as np
 
 SMALL_DOUBLE = 1e-10
 LARGE_DOUBLE = 1e50

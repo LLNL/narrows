@@ -4,6 +4,7 @@ Author: Kyle Bilton
 Date: 11/2018
 """
 import numpy as np
+import sys
 import torch
 
 
@@ -16,7 +17,7 @@ class ANNSlabSolver(object):
     def __init__(self, N, n_nodes, n_points_z, z_max=8., sigma_t=1.,
                  sigma_s0=0.8, sigma_s1=0.2, source=1, source_fraction=0.5,
                  gamma_l=50, gamma_r=50, learning_rate=1e-3, eps=1e-8,
-                 use_weights=False):
+                 use_weights=False, tensorboard=False, verbose=False):
         """
         Parameters
         ==========
@@ -46,6 +47,10 @@ class ANNSlabSolver(object):
             the neural network.
         use_weights : bool, default=False
             Use updated residual weights in minimizing the loss.
+        tensorboard : bool, default=False
+            Use tensorboard.
+        verbose : bool, default=False
+            Output more information.
         """
 
         ########################################
@@ -106,7 +111,20 @@ class ANNSlabSolver(object):
         assert n_nodes >= 1
         self.n_nodes = n_nodes
 
-        self._build_model()
+        self.verbose = verbose
+        summary_writer = None
+        if tensorboard:
+            try:
+                from torch.utils.tensorboard import SummaryWriter
+                summary_writer = SummaryWriter()
+            except Exception as e:
+                print('Skipping tensorboard, use --verbose_nn to see why or '
+                      'remove --tensorboard to silence this message.',
+                      file=sys.stderr)
+                if verbose:
+                    print(e, file=sys.stderr)
+
+        self._build_model(summary_writer)
 
         assert learning_rate > 0
         self.learning_rate = learning_rate
@@ -125,14 +143,15 @@ class ANNSlabSolver(object):
         self.r_squared_opt = (eps / n_points_z *
                               torch.ones(n_points_z).reshape(-1, 1))
 
-    def _build_model(self):
+    def _build_model(self, summary_writer=None):
         """
         Build neural network model.
         """
         model = torch.nn.Sequential(torch.nn.Linear(1, self.n_nodes),
                                     torch.nn.Tanh(),
                                     torch.nn.Linear(self.n_nodes, self.N),)
-
+        if summary_writer:
+            summary_writer.add_graph(model, self.z_t)
         self.model = model
 
     def _loss(self, y_pred, z):

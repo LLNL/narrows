@@ -1,16 +1,15 @@
 #!/usr/bin/env python
 
-import sys
-import os
-import pickle
 import argparse
-import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import numpy as np
+import os
+import pickle
 import scipy.special as sp
 
 mpl.use('TkAgg')
-plt.style.use('style.mplstyle')
+plt.style.use(f'{os.path.dirname(__file__)}/style.mplstyle')
 
 ALGORITHMS = ['sn', 'mc', 'nn', 'an']
 QUANTS = ['flux', 're', 'z', 'time', 'loss']
@@ -48,9 +47,10 @@ def plot_relative_error(myargs, problem_args, npzfile):
     mc_zone_centers = edges2centers(npzfile['mc_zone_edges'],
                                     problem_args.num_mc_zones)
 
-    nn_an_flux = analytic_soln(npzfile['nn_zone_centers'])
-    sn_an_flux = analytic_soln(npzfile['sn_zone_edges'])
-    mc_an_flux = analytic_soln(mc_zone_centers)
+    if not problem_args.skip_nn:
+        nn_an_flux = analytic_soln(npzfile['nn_zone_centers'], problem_args)
+    sn_an_flux = analytic_soln(npzfile['sn_zone_edges'], problem_args)
+    mc_an_flux = analytic_soln(mc_zone_centers, problem_args)
 
     if myargs.verbose:
         print('mc_zone_centers')
@@ -60,11 +60,14 @@ def plot_relative_error(myargs, problem_args, npzfile):
         print('mc_an_flux')
         print(mc_an_flux)
 
-    nn_re = relative_error(npzfile['nn_flux'], nn_an_flux)
+    if not problem_args.skip_nn:
+        nn_re = relative_error(npzfile['nn_flux'], nn_an_flux)
     sn_re = relative_error(npzfile['sn_flux'], sn_an_flux)
     mc_re = relative_error(mc_flux, mc_an_flux)
 
     if 'nn' in myargs.algorithms:
+        if problem_args.skip_nn:
+            raise RuntimeError('Cannot plot nn relative error, nn was skipped')
         plt.plot(npzfile['nn_zone_centers'], nn_re, label='nn')
     if 'sn' in myargs.algorithms:
         plt.plot(npzfile['sn_zone_edges'], sn_re, label='sn')
@@ -75,14 +78,16 @@ def plot_relative_error(myargs, problem_args, npzfile):
     plt.ylabel('relative error')
     show_or_save(myargs.show, myargs.problem, 're')
 
-    nn_mre = get_max_relative_error(nn_re, npzfile['nn_zone_centers'])
+    if not problem_args.skip_nn:
+        nn_mre = get_max_relative_error(nn_re, npzfile['nn_zone_centers'])
     sn_mre = get_max_relative_error(sn_re, npzfile['sn_zone_edges'])
     mc_mre = get_max_relative_error(mc_re, mc_zone_centers)
 
     hdr_fmt = '%2s %10s %10s'
     tbl_fmt = '%2s %10f %10.2f'
     print(hdr_fmt % ('', 'max(abs(re))', 'z_location'))
-    print(tbl_fmt % ('nn', nn_mre[0], nn_mre[1]))
+    if not problem_args.skip_nn:
+        print(tbl_fmt % ('nn', nn_mre[0], nn_mre[1]))
     print(tbl_fmt % ('sn', sn_mre[0], sn_mre[1]))
     print(tbl_fmt % ('mc', mc_mre[0], mc_mre[1]))
 
@@ -94,18 +99,18 @@ def get_max_relative_error(re, z):
     return max_re, max_z
 
 
-def analytic_soln(z):
-    EPS = 1e-9
-    src_mag = 8
-    sigma_t = 8
-    zstop = 1
-    if src_mag != sigma_t:
-        print('Bad src_mag != sigma_t')
-        sys.exit(-1)
-    return 1 - 0.5 * (np.exp(-z * sigma_t) + np.exp(sigma_t * (z - zstop)) -
-                      src_mag * z * sp.exp1(sigma_t * z + EPS) -
-                      src_mag * (zstop - z) * sp.exp1(sigma_t * (zstop - z)
-                      + EPS))
+def analytic_soln(z, problem_args):
+    EPS = 1e-25
+    src_mag = problem_args.source_magnitude
+    sigma_t = problem_args.sigma_t
+    zstop = problem_args.zstop
+
+    return ((src_mag / sigma_t) -
+            (src_mag / (2 * sigma_t)) * (np.exp(-sigma_t * z) +
+                                         np.exp(sigma_t * (z - zstop))) +
+            (src_mag / 2) * (z * sp.exp1(sigma_t * z + EPS) +
+                             (zstop - z) * sp.exp1(sigma_t * (zstop - z)
+                                                   + EPS)))
 
 
 def plot_loss(myargs, problem_args, loss):
@@ -116,9 +121,10 @@ def plot_loss(myargs, problem_args, loss):
 
 
 def plot_flux(myargs, problem_args, npzfile):
-    nn_flux = npzfile['nn_flux']
-    nn_zone_centers = npzfile['nn_zone_centers']
-    nn_label = 'nn'
+    if not problem_args.skip_nn:
+        nn_flux = npzfile['nn_flux']
+        nn_zone_centers = npzfile['nn_zone_centers']
+        nn_label = 'nn'
 
     sn_flux = npzfile['sn_flux']
     sn_zone_edges = npzfile['sn_zone_edges']
@@ -131,7 +137,7 @@ def plot_flux(myargs, problem_args, npzfile):
 
     if myargs.problem == 'p1':
         analytic_zone_edges = sn_zone_edges
-        analytic_flux = analytic_soln(analytic_zone_edges)
+        analytic_flux = analytic_soln(analytic_zone_edges, problem_args)
 
     if myargs.verbose:
         print('analytic_zone_edges')
@@ -142,13 +148,16 @@ def plot_flux(myargs, problem_args, npzfile):
         print(mc_flux)
         print('mc_zone_centers')
         print(mc_zone_centers)
-        print('nn_zone_centers')
-        print(nn_zone_centers)
-        print('nn_flux')
-        print(nn_flux)
+        if not problem_args.skip_nn:
+            print('nn_zone_centers')
+            print(nn_zone_centers)
+            print('nn_flux')
+            print(nn_flux)
 
     plotname = 'flux_'
     if 'nn' in myargs.algorithms:
+        if problem_args.skip_nn:
+            raise RuntimeError('Cannot plot nn flux, nn was skipped')
         plt.plot(nn_zone_centers, nn_flux, label=nn_label)
         plotname += 'nn'
     if 'sn' in myargs.algorithms:
@@ -192,7 +201,8 @@ def main(myargs):
     npzfile = np.load('%s.npz' % fname)
     problem_args = load_pickle('%s.args' % fname)
     runtimes = load_dict('%s.time' % fname)
-    loss = load_pickle('%s.loss' % fname)
+    if not problem_args.skip_nn:
+        loss = load_pickle('%s.loss' % fname)
     if 'z' in myargs.quants_to_analyze:
         plot_z(myargs, problem_args, npzfile)
     if 're' in myargs.quants_to_analyze:
@@ -202,6 +212,8 @@ def main(myargs):
     if 'time' in myargs.quants_to_analyze:
         print_runtimes(runtimes)
     if 'loss' in myargs.quants_to_analyze:
+        if problem_args.skip_nn:
+            raise RuntimeError('Cannot plot loss, nn was skipped')
         plot_loss(myargs, problem_args, loss)
 
 

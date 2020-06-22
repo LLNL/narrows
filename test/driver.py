@@ -1,19 +1,15 @@
 #!/usr/bin/env python
-import pickle
-import time
+
 import argparse
 import numpy as np
-import torch
+import os
+import pickle
 import sys
-sys.path.append('..')
+import time
+import torch
+sys.path.append(f'{os.path.dirname(__file__)}/..')
 
-#from ann.ANNSlabSolver import ANNSlabSolver
-#from sn import sn1d
-#from mc import mc1d
-from narrows import ANNSlabSolver, sn1d, mc1d
-
-np.random.seed(0)
-torch.manual_seed(0)
+from narrows import ANNSlabSolver, sn1d, mc1d  # noqa: E402
 
 # Shared All
 SOURCE = [0, 1]
@@ -47,6 +43,8 @@ NUM_PHYSICAL_PARTICLES = 1.
 
 
 def run(args):
+    np.random.seed(0)
+    torch.manual_seed(0)
     write_pickle_to_file(args, args, 'args')
 
     if args.skip_nn:
@@ -116,7 +114,9 @@ def create_nn_object(args):
                               source_fraction=source_fraction,
                               learning_rate=args.learning_rate,
                               gamma_r=args.gamma_r,
-                              eps=args.epsilon_nn)
+                              eps=args.epsilon_nn,
+                              tensorboard=args.tensorboard,
+                              verbose=args.verbose_nn)
     return nn_solver
 
 
@@ -256,6 +256,12 @@ def parse_args(input_args=None):
     parser.add_argument('--skip_nn',
                         action='store_true',
                         help='do not run neural network')
+    parser.add_argument('--tensorboard',
+                        action='store_true',
+                        help='use tensorboard')
+    parser.add_argument('--verbose_nn',
+                        action='store_true',
+                        help='Output more information from neural network')
 
     if input_args:
         args = parser.parse_args(input_args)
