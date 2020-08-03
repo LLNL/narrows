@@ -1,0 +1,37 @@
+ctrl:
+  ordinates: 4
+  cells_per_region: 50
+  hidden_layer_nodes: 5
+  epsilon: 1.e-13
+  learning_rate: 1.e-3
+  sn: True
+  sn_epsilon: 1.e-6
+  mc: True
+  num_particles: 1.e+6
+  num_physical_particles: 8
+
+mat:
+  mat1:
+    sigma_a: 3.6
+    sigma_s0: 6.4
+    sigma_s1: 1.6
+
+reg:
+  reg1:
+    start: 0.0
+    end: 1.0
+    mat: 'mat1'
+
+src:
+  src1:
+    start: 0.0
+    end: 0.5
+    magnitude: 8.0
+
+bc:
+  bc1:
+    location: 0.0
+    behavior: 'vacuum'
+  bc2:
+    location: 1.0
+    behavior: 'vacuum'

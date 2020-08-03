@@ -1,23 +1,23 @@
 # genplots.sh
 
-# Run p1 and generate plots
-echo "$0: Running p1"
-./p1-full_slab.py
-echo "$0: Generating p1 analytic flux plot"
-./analyze.py -p p1 -q flux -a an
-echo "$0: Generating p1 relative error plot"
-./analyze.py -p p1 -q re
-echo "$0: Generating p1 loss plot"
-./analyze.py -p p1 -q loss
+# Run full_slab and generate plots
+echo "$0: Running full_slab"
+../bin/narrows full_slab.yaml
+echo "$0: Generating full_slab analytic flux plot"
+./analytic_full_slab.py
+echo "$0: Generating full_slab relative error plot"
+./analyze.py full_slab -q re
+echo "$0: Generating full_slab loss plot"
+./analyze.py full_slab -q loss
 
 # Run scaling study and generate plots
 echo "$0: Running scaling study"
-./nnVsn.py p1scalstud --run
+./nnVsn.py --run
 echo "$0: Analyze scaling study"
-./nnVsn.py p1scalstud
+./nnVsn.py
 
-# Run p2 and generate flux plot
-echo "$0: Running p2"
-./p2-half_slab.py
-echo "$0: Generating p2 flux plot"
-./analyze.py -p p2 -q flux
+# Run half_slab and generate flux plot
+echo "$0: Running half_slab"
+../bin/narrows half_slab.yaml
+echo "$0: Generating half_slab flux plot"
+./analyze.py half_slab -q flux

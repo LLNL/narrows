@@ -5,38 +5,20 @@ import pytest
 import shutil
 import sys
 MY_DIR = os.path.dirname(__file__)
+sys.path.append(f'{MY_DIR}/../..')
+
+import narrows  # noqa: E402
+
 sys.path.append(f'{MY_DIR}/..')
+import analytic_full_slab  # noqa: E402
 
-import driver  # noqa: E402
-import analyze  # noqa: E402
+ALGORITHMS = ['sn', 'mc', 'nn', 'an']
 
-
-def get_args():
-    zstop = 1
-    argstr = (
-     f'full_slab '
-     f'--sigma_t 8 '
-     f'--sigma_s0 0 '
-     f'--sigma_s1 0 '
-     f'--zstop {zstop} '
-     f'--num_ordinates 4 '
-     f'--num_hidden_layer_nodes 5 '
-     f'--learning_rate 1e-3 '
-     f'--epsilon_sn 1e-6 '
-     f'--epsilon_nn 1e-13 '
-     f'--num_sn_zones 50 '
-     f'--num_mc_zones 50 '
-     f'--num_nn_zones 50 '
-     f'--num_particles 1000000 '
-     f'--num_physical_particles 8 '
-     f'--uniform_source_extent 0 {zstop} '
-     f'--source_magnitude 8')
-    args = driver.parse_args(argstr.split())
-    return args
+FULL_SLAB = f'{MY_DIR}/../full_slab'
 
 
 def assert_flux_equal(baseline_npzfile, npzfile,
-                      algorithms=analyze.ALGORITHMS):
+                      algorithms=ALGORITHMS):
     for algorithm in algorithms:
         baseline_flux = baseline_npzfile[f'{algorithm}_flux']
         new_flux = npzfile[f'{algorithm}_flux']
@@ -49,10 +31,10 @@ def load_npzfiles(problem_name):
     return baseline, new
 
 
-def run_test(function, algorithms=analyze.ALGORITHMS):
+def run_test(function, algorithms=ALGORITHMS):
     os.chdir(MY_DIR)
-    args = function()
-    npzfiles = load_npzfiles(args.problem_name)
+    problem_name = function()
+    npzfiles = load_npzfiles(problem_name)
     assert_flux_equal(*npzfiles, algorithms=algorithms)
 
 
@@ -64,11 +46,12 @@ def baseline(function):
 
 
 def skip_nn():
-    args = get_args()
-    args.problem_name = f'{args.problem_name}_skip_nn'
-    args.skip_nn = True
-    driver.run(args)
-    return args
+    problem = 'fs_skip_nn'
+    argv = (f'{FULL_SLAB}.yaml '
+            f'-d nn=False '
+            f'-d out={problem}').split()
+    narrows.main(argv)
+    return problem
 
 
 def test_skip_nn():
@@ -80,16 +63,16 @@ def baseline_skip_nn():
 
 
 def analytic():
-    args = get_args()
-    args.problem_name = f'{args.problem_name}_analytic'
-    zone_edges = np.linspace(0, args.zstop, args.num_sn_zones + 1)
-    flux = analyze.analytic_soln(zone_edges, args)
+    problem = 'fs_analytic'
+    edge, src_mag, sigma_t, zstop = \
+        analytic_full_slab.get_parameters_for(FULL_SLAB)
+    flux = analytic_full_slab.solution(edge, src_mag, sigma_t, zstop)
 
-    np.savez(f'{MY_DIR}/{args.problem_name}.npz',
-             an_zone_edges=zone_edges,
+    np.savez(f'{MY_DIR}/{problem}.npz',
+             edge=edge,
              an_flux=flux)
 
-    return args
+    return problem
 
 
 def test_analytic():
@@ -100,12 +83,19 @@ def baseline_analytic():
     baseline(analytic)
 
 
+def get_deck_and_mesh(argv):
+    deck = narrows.parse_input(argv)
+    mesh = narrows.create_mesh(deck)
+    return deck, mesh
+
+
 def nn():
-    args = get_args()
-    args.problem_name = f'{args.problem_name}_nn'
-    args.epsilon_nn = 0.1  # Converge really quickly to keep runtime down
-    driver.run(args)
-    return args
+    problem = 'fs_nn'
+    argv = (f'{FULL_SLAB}.yaml '
+            f'-d out={problem} '
+            f'-d epsilon=0.1').split()
+    narrows.main(argv)
+    return problem
 
 
 def test_nn():
@@ -117,15 +107,17 @@ def baseline_nn():
 
 
 def tensorboard():
-    args = get_args()
-    args.problem_name = f'{args.problem_name}_tensorboard'
-    args.epsilon_nn = 0.1  # Converge really quickly to keep runtime down
-    args.tensorboard = True
-    driver.run(args)
-    return args
+    problem = 'fs_tensorboard'
+    argv = (f'{FULL_SLAB}.yaml '
+            f'-d out={problem} '
+            f'-d epsilon=0.1 '
+            f'-d tensorboard=True').split()
+    narrows.main(argv)
+    return problem
 
 
-@pytest.mark.skipif(importlib.util.find_spec('torch.utils.tensorboard') is None,
+@pytest.mark.skipif(importlib.util.find_spec('torch.utils.tensorboard')
+                    is None,
                     reason='tensorboard is not installed')
 def test_tensorboard():
     run_test(tensorboard, algorithms=['nn'])

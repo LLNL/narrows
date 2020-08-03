@@ -1,5 +1,5 @@
 Narrows
-------------
+-------
 Narrows solves the discrete ordinates transport equation using a
 neural network.
 
@@ -9,7 +9,8 @@ To install and run narrows:
     $ virtualenv -p python3.8 venv
     $ ./venv/bin/pip install -r narrows/requirements.txt
     $ cd narrows/test
-    $ ../../venv/bin/python p1-full_slab.py
+    $ ../../venv/bin/python ../bin/narrows full_slab.yaml
+    $ ../../venv/bin/python ./analyze.py full_slab -s
 
 Contributing
 ------------
@@ -22,7 +23,7 @@ with ``master`` as the destination branch in the
 
 
 Authors
-------------
+-------
 Narrows was created by Mike Pozulp (pozulp1@llnl.gov), Kyle Bilton, and Patrick Brantley.
 
 
@@ -36,7 +37,7 @@ paper:
    In *Proceedings of M&C 2019*, 2160-2165. Portland, Oregon, August 25-29, 2019. LLNL-CONF-772639.
 
 License
-------------
+-------
 Narrows is distributed under the terms of the MIT license.
 All new contributions must be made under the MIT license.
 See [LICENSE](https://github.com/llnl/narrows/blob/master/LICENSE)

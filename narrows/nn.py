@@ -14,8 +14,7 @@ class ANNSlabSolver(object):
     networks. The ANN uses a single hidden layer.
     """
 
-    def __init__(self, N, n_nodes, n_points_z, z_max=8., sigma_t=1.,
-                 sigma_s0=0.8, sigma_s1=0.2, source=1, source_fraction=0.5,
+    def __init__(self, N, n_nodes, edges, sigma_t, sigma_s0, sigma_s1, source,
                  gamma_l=50, gamma_r=50, learning_rate=1e-3, eps=1e-8,
                  use_weights=False, tensorboard=False, verbose=False):
         """
@@ -25,34 +24,31 @@ class ANNSlabSolver(object):
             Order of the Legendre-Gauss quadratures.
         n_nodes : int
             Number of nodes in the hidden layer of the neural net.
-        n_points_z : int
-            Number of spatial points
-        z_max : float, default=8
-            Maximum position along the z-axis.
-        sigma_t : float, default=1.
+        edges : numpy array
+            The edges of the spatial discretization.
+        sigma_t : numpy array
             Total macroscopic cross section.
-        sigma_s0
-        sigma_s1
-        source
-            Magnitude of the external source
-        source_fraction
-            Fraction of the slab covered by the source
-        source_mag
-        learning_rate
+        sigma_s0 : numpy array
+            First term in the scattering cross section expansion.
+        sigma_s1 : numpy array
+            Second term in the scattering cross section expansion.
+        source : numpy array
+            Magnitude of the external source.
+        gamma_l : int
+            Left boundary regularizer coefficient.
+        gamma_r : int
+            Right boundary regularizer coefficient.
+        learning_rate : float
             Learning rate of the Adam optimizer.
-        eps : float, default=1e-8
-            Convergence criterion.
-        random_state : int, default=None
-            If not None, use this value for seeding random initializations in
-            the neural network.
-        use_weights : bool, default=False
+        eps : float
+            Convergence criterion comparison quantity.
+        use_weights : bool
             Use updated residual weights in minimizing the loss.
-        tensorboard : bool, default=False
+        tensorboard : bool
             Use tensorboard.
-        verbose : bool, default=False
+        verbose : bool
             Output more information.
         """
-
         ########################################
         # Angular Meshing
         ########################################
@@ -72,43 +68,28 @@ class ANNSlabSolver(object):
         self.mu_t = mu_t
         self.w_t = w_t
 
-        ########################################
-        # Spatial Meshing
-        ########################################
-        self.n_points_z = n_points_z
-        self.z_max = z_max
-
-        # Define an array of float32 x values
-        z = np.linspace(0, z_max, n_points_z, dtype=np.float32)
-        self.z = z
-
-        # Now turn this array into a PyTorch tensor, stacked as a column
+        # Turn the edges into a PyTorch tensor, stacked as a column
         # (hence the [:,None])
-        z_t = torch.from_numpy(z[:, None])
-        # In this case, we want to track the gradients with respect to x,
+        self.z = torch.from_numpy(edges[:, None])
+        # In this case, we want to track the gradients with respect to z,
         # so specify that here
-        z_t = torch.autograd.Variable(z_t, requires_grad=True)
+        z_t = torch.autograd.Variable(self.z, requires_grad=True)
         self.z_t = z_t
 
         ########################################
-        # Constants
+        # Material properties
         ########################################
-        self.sigma_t = sigma_t
-        self.sigma_s0 = sigma_s0
-        self.sigma_s1 = sigma_s1
+        self.sigma_t = torch.from_numpy(sigma_t).unsqueeze(1).repeat(1, 4)
+        self.sigma_s0 = torch.from_numpy(sigma_s0).unsqueeze(1).repeat(1, 4)
+        self.sigma_s1 = torch.from_numpy(sigma_s1).unsqueeze(1).repeat(1, 4)
 
         # Set data on the external source
-        Q = source * np.ones((n_points_z, N), dtype=np.float32)
-        Q[int(n_points_z*source_fraction):, :] = 0
-        Q_t = torch.from_numpy(Q)
-        self.Q_t = Q_t
+        self.Q_t = torch.from_numpy(source).unsqueeze(1).repeat(1, 4)
 
         ########################################
         # Neural Network Parameters
         ########################################
 
-        # Enforce some requirements on the hidden layer size
-        assert n_nodes >= 1
         self.n_nodes = n_nodes
 
         self.verbose = verbose
@@ -139,9 +120,9 @@ class ANNSlabSolver(object):
         self.eps = eps
 
         self.use_weights = use_weights
-        self.gamma = torch.ones(self.n_points_z).reshape(-1, 1)
-        self.r_squared_opt = (eps / n_points_z *
-                              torch.ones(n_points_z).reshape(-1, 1))
+        self.gamma = torch.ones(len(self.z)).reshape(-1, 1)
+        self.r_squared_opt = (eps / len(self.z) *
+                              torch.ones(len(self.z)).reshape(-1, 1))
 
     def _build_model(self, summary_writer=None):
         """

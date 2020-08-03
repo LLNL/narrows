@@ -1,0 +1,54 @@
+ctrl:
+  ordinates: 4
+  cells_per_region: 5
+  hidden_layer_nodes: 6
+
+mat:
+  mat1:
+    sigma_a: 50.0
+    sigma_s0: 0.0
+  mat2:
+    sigma_a: 5.0
+    sigma_s0: 0.0
+  mat3:
+    sigma_a: 0.0
+    sigma_s0: 0.0
+  mat4:
+    sigma_a: 0.1
+    sigma_s0: 0.9
+
+reg:
+  reg1:
+    start: 0.0
+    end: 2.0
+    mat: 'mat1'
+  reg2:
+    start: 2.0
+    end: 3.0
+    mat: 'mat2'
+  reg3:
+    start: 3.0
+    end: 5.0
+    mat: 'mat3'
+  reg4:
+    start: 5.0
+    end: 8.0
+    mat: 'mat4'
+
+src:
+  src1:
+    start: 0.0
+    end: 2.0
+    magnitude: 50.0
+  src2:
+    start: 5.0
+    end: 6.0
+    magnitude: 1.0
+
+bc:
+  bc1:
+    location: 0.0
+    behavior: 'reflect'
+  bc2:
+    location: 8.0
+    behavior: 'vacuum'

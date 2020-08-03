@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-
-import collections
 import numpy as np
 
 SMALL_DOUBLE = 1e-10
@@ -13,10 +10,10 @@ __version__ = '0.0.1'
 
 
 class Tally():
-    def __init__(self, args, zone_edges):
-        self._num_particles = float(args.num_particles)
-        self._zone_lengths = zone_edges[1:] - zone_edges[:-1]
-        self._num_zones = args.num_mc_zones
+    def __init__(self, edges, num_particles, num_physical_particles):
+        self._num_particles = float(num_particles)
+        self._zone_lengths = edges[1:] - edges[:-1]
+        self._num_zones = len(edges) - 1
         self._negcur = np.zeros(self._num_zones)
         self._negcur2 = np.zeros(self._num_zones)
         self._poscur = np.zeros(self._num_zones)
@@ -24,8 +21,7 @@ class Tally():
         self._absorb = np.zeros(self._num_zones)
         self._left_escape_count = 0
         self._right_escape_count = 0
-        self._particle_weight = (args.num_physical_particles /
-                                 args.num_particles)
+        self._particle_weight = (num_physical_particles / num_particles)
 
     def flux(self, dirs, distances, particle_zone_idx):
         angular_flux = distances / self._zone_lengths[particle_zone_idx]
@@ -51,7 +47,7 @@ class Tally():
             self._poscur2 += padded_bincount * padded_bincount
 
     def get_flux(self):
-        return self._negcur + self._poscur
+        return (self._negcur + self._poscur) * self._particle_weight
 
     def get_flux_squared(self):
         return self._negcur2 + self._poscur2
@@ -82,7 +78,7 @@ class Tally():
         ratio_absorbed = num_absorbed / self._num_particles
         if probabilities and tallies:
             string = (FMT_STRING * 6) % \
-                     ('flux', self.get_flux() * self._particle_weight,
+                     ('flux', self.get_flux(),
                       'absorb', self._absorb,
                       'sum(absorb)', num_absorbed,
                       'sum(absorb) / total', ratio_absorbed,
@@ -105,30 +101,27 @@ class Tally():
 
 
 class Source():
-    def __init__(self, args):
-        self.num_particles = args.num_particles
-        if args.point_source_location is not None:
-            self.position = args.point_source_location + SMALL_DOUBLE
-            self.point_source = True
-        else:
-            self.position = args.uniform_source_extent
-            self.point_source = False
+    def __init__(self, source, num_particles):
+        self.source = source
+        self.num_particles = num_particles
 
     def sample_positions(self):
-        if self.point_source:
-            return np.array([self.position] * self.num_particles)
-        else:
-            low = self.position[0]
-            high = self.position[1]
-            return sample_uniform(low, high, self.num_particles)
+        magnitude_sum = sum([src.magnitude for src in self.source.values()])
+        positions_per_src = []
+        for src in self.source.values():
+            magnitude_ratio = src.magnitude / magnitude_sum
+            num_src_particles = round(magnitude_ratio * self.num_particles)
+            positions = sample_uniform(src.start, src.end, num_src_particles)
+            positions_per_src.append(positions)
+        return np.concatenate(positions_per_src)
 
     def sample_direction_cosines(self):
         return sample_uniform(-1, 1, self.num_particles)
 
     def __repr__(self):
-        string = 'Source:@ num_particles %d@ position %s@ point_source %s' % \
-                (self.num_particles, str(self.position),
-                 str(self.point_source))
+        string = ('Source:@ num_particles {self.num_particles}@ '
+                  'source {self.source}')
+
         return '\n'.join([x.strip() for x in string.split('@')])
 
 
@@ -144,21 +137,21 @@ class Particles():
     def get_living_particle_indices(self):
         return self.alive.nonzero()[0]
 
-    def compute_dist_to_boundary(self, particle_indices, zone_edges):
+    def compute_dist_to_boundary(self, particle_indices, edges):
         pos_dir_particle_indices = np.where(self.mu[particle_indices] > 0)
         pos_dir_edge_indices = \
-            np.searchsorted(zone_edges,
+            np.searchsorted(edges,
                             self.z[particle_indices][pos_dir_particle_indices])
         pos_dir_dist_to_boundary = (
-            zone_edges[pos_dir_edge_indices] -
+            edges[pos_dir_edge_indices] -
             self.z[particle_indices][pos_dir_particle_indices])
         neg_dir_particle_indices = np.where(self.mu[particle_indices] < 0)
         neg_dir_edge_indices = (
-           np.searchsorted(zone_edges,
+           np.searchsorted(edges,
                            self.z[particle_indices][neg_dir_particle_indices])
            - 1)
         neg_dir_dist_to_boundary = (
-            zone_edges[neg_dir_edge_indices] -
+            edges[neg_dir_edge_indices] -
             self.z[particle_indices][neg_dir_particle_indices])
 
         dist_to_boundary = np.zeros(len(particle_indices))
@@ -213,7 +206,7 @@ class Particles():
             print('%9s %d' % ('ABSORBED', len(particle_indices)))
         self.alive[particle_indices] = False
 
-    def scatter(self, particle_indices, sigma_s0, sigma_s1):
+    def scatter(self, particle_indices, sigma_s0, sigma_s1, edges):
         # TODO TALLY SCATTERING REACTION
         if self.verbose:
             print('%9s %d' % ('SCATTERED', len(particle_indices)))
@@ -221,7 +214,10 @@ class Particles():
         # linearly-isotropic scattering outgoing direction sampling
         # formula is from the last page of hmw4_Hint.pdf
         mubar = safe_divide(sigma_s1, sigma_s0)
-        three_mu_times_mubar = 3 * self.mu[particle_indices] * mubar
+        mubar_at_position = mubar[np.searchsorted(edges,
+                                                  self.z[particle_indices])]
+        three_mu_times_mubar = (3 * self.mu[particle_indices] *
+                                mubar_at_position)
         u_neg1_pos1 = 2 * sample_uniform(size=len(particle_indices)) - 1
         self.mu[particle_indices] = ((2 * u_neg1_pos1 + three_mu_times_mubar) /
                                      (1 + np.sqrt(1 + three_mu_times_mubar *
@@ -240,15 +236,24 @@ class Particles():
         return '\n'.join(string.split('@'))
 
 
-def sample_dist_to_collision(sample_size, sigma_t):
-    if sigma_t == 0:
-        return np.array([LARGE_DOUBLE] * sample_size)
-    else:
-        return -np.log(sample_uniform(size=sample_size)) / sigma_t
+def sample_dist_to_collision(positions, sigma_t, edges):
+    dist = np.zeros(positions.shape)
+    sigma_t_at_position = sigma_t[np.searchsorted(edges, positions)]
+
+    idx_free_streaming = np.where(sigma_t_at_position == 0)
+    dist[idx_free_streaming] = LARGE_DOUBLE
+
+    idx_colliding = np.where(sigma_t_at_position != 0)
+    len_idx_colliding = len(idx_colliding[0])
+    dist[idx_colliding] = (-np.log(sample_uniform(size=len_idx_colliding))
+                           / sigma_t_at_position[idx_colliding])
+    return dist
 
 
-def sample_collision(sample_size, reaction_cdf):
-    return np.searchsorted(reaction_cdf, sample_uniform(size=sample_size))
+def sample_collision(positions, scatter_prob, edges):
+    scatter_prob_at_position = scatter_prob[np.searchsorted(edges, positions)]
+    variates = sample_uniform(size=len(positions))
+    return variates > scatter_prob_at_position
 
 
 def sample_uniform(low=0.0, high=1.0, size=1):
@@ -264,7 +269,11 @@ def print_iteration_report(iteration_number, living_particle_indices,
 
 
 def safe_divide(a, b):
-    return 0 if b == 0 else a / b
+    assert a.shape == b.shape
+    result = np.zeros(a.shape)
+    idx = np.where(b != 0)
+    result[idx] = a[idx] / b[idx]
+    return result
 
 
 def soft_zero(value):
@@ -274,36 +283,28 @@ def soft_zero(value):
         return False
 
 
-def main(args):
+def main(edges, sigma_t, sigma_s0, sigma_s1, source, num_particles,
+         num_physical_particles, max_num_segments, verbose):
 
-    # Set random number seed
-    np.random.seed(args.seed)
+    scatter_prob = safe_divide(sigma_s0, sigma_s0 + sigma_t)
 
-    # J
-    zone_edges = np.linspace(0, args.zstop, args.num_mc_zones + 1)
-    if args.verbose:
-        print('zone_edges', zone_edges)
-
-    scatter_prob = safe_divide(args.sigma_s0, args.sigma_s0 + args.sigma_t)
-    reaction_cdf = [scatter_prob, 1]
-
-    tally = Tally(args, zone_edges)
-    src = Source(args)
+    tally = Tally(edges, num_particles, num_physical_particles)
+    src = Source(source, num_particles)
     particles = Particles(src.sample_positions(),
-                          src.sample_direction_cosines(), tally, args.verbose)
+                          src.sample_direction_cosines(), tally, verbose)
 
     iteration_number = 0
     while np.any(particles.alive):
         living_particle_indices = particles.get_living_particle_indices()
         print_iteration_report(iteration_number, living_particle_indices,
-                               particles, args.verbose)
+                               particles, verbose)
 
         dist_to_collision = sample_dist_to_collision(
-                len(living_particle_indices), args.sigma_t)
+                particles.z[living_particle_indices], sigma_t, edges)
         (dist_to_boundary, particle_zone_idx) = (
                 particles.compute_dist_to_boundary(
                     living_particle_indices,
-                    zone_edges))
+                    edges))
 
         # Handle boundary crossing
         boundary_crossing_particle_indices = living_particle_indices[
@@ -315,7 +316,7 @@ def main(args):
         particles.move_particle(boundary_crossing_particle_indices,
                                 boundary_crossing_particle_distances,
                                 boundary_crossing_particle_zone_idx,
-                                args.zstop)
+                                edges[-1])
 
         # Handle collision
         collision_particle_indices = living_particle_indices[dist_to_boundary >
@@ -327,8 +328,8 @@ def main(args):
         particles.move_particle(collision_particle_indices,
                                 collision_particle_distances,
                                 collision_particle_zone_idx)
-        collisions = sample_collision(len(collision_particle_indices),
-                                      reaction_cdf)
+        collisions = sample_collision(particles.z[collision_particle_indices],
+                                      scatter_prob, edges)
         particles.absorb(
                 collision_particle_indices[
                     np.where(collisions == ABSORB_REACTION)],
@@ -336,22 +337,18 @@ def main(args):
                     np.where(collisions == ABSORB_REACTION)])
         particles.scatter(collision_particle_indices[
                           np.where(collisions == SCATTER_REACTION)],
-                          args.sigma_s0, args.sigma_s1)
+                          sigma_s0, sigma_s1, edges)
 
         iteration_number += 1
-        max_seg_indices = particles.segments > args.max_num_segments
+        max_seg_indices = particles.segments > max_num_segments
         if np.any(max_seg_indices):
             print('Warning: Killing %d particles which achieved max num '
                   'segments %d' % (len(max_seg_indices),
-                                   args.max_num_segments))
+                                   max_num_segments))
             particles.alive[max_seg_indices] = False
 
-    if args.verbose:
+    if verbose:
         print('--final state--')
         print(particles)
 
-    Result = collections.namedtuple('Result',
-                                    'zone_edges tally')
-    return Result(zone_edges, tally)
-
-    return particles.tally
+    return tally

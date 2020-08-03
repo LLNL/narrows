@@ -1,95 +1,24 @@
 #!/usr/bin/env python
+'''
+Analyze the output from yamldriver.py
+'''
 
 import argparse
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import pandas as pd
 import pickle
-import scipy.special as sp
 
-mpl.use('TkAgg')
+import analytic_full_slab
+
 plt.style.use(f'{os.path.dirname(__file__)}/style.mplstyle')
 
-ALGORITHMS = ['sn', 'mc', 'nn', 'an']
-QUANTS = ['flux', 're', 'z', 'time', 'loss']
-PROBLEMS = ['p1', 'p2']
-problem2fname = {'p1': 'p1-full_slab',
-                 'p2': 'p2-half_slab'}
+QUANTS = ['flux', 're', 'time', 'loss']
 
 
-def print_arrays(myargs, problem_args, npzfile):
-    print('nn_zone_centers', npzfile['nn_zone_centers'])
-    print('nn_flux', npzfile['nn_flux'])
-    print('sn_zone_edges', npzfile['sn_zone_edges'])
-    print('sn_flux', npzfile['sn_flux'])
-    print('mc_zone_edges', npzfile['mc_zone_edges'])
-    print('mc_flux', npzfile['mc_flux'])
-    print('analytic_zone_edges', npzfile['analytic_zone_edges'])
-    print('analytic_flux', npzfile['analytic_flux'])
-
-
-def plot_z(myargs, problem_args, npzfile):
-    nn_x = np.arange(npzfile['nn_zone_centers'].size)
-    sn_x = np.arange(npzfile['sn_zone_edges'].size)
-    mc_x = np.arange(npzfile['mc_zone_edges'].size)
-
-    plt.plot(nn_x, npzfile['nn_zone_centers'], label='nn')
-    plt.plot(sn_x, npzfile['sn_zone_edges'], label='sn')
-    plt.plot(mc_x, npzfile['mc_zone_edges'], label='mc')
-
-    plt.legend()
-    show_or_save(myargs.show, myargs.problem, 'z')
-
-
-def plot_relative_error(myargs, problem_args, npzfile):
-    mc_flux = npzfile['mc_flux']
-    mc_zone_centers = edges2centers(npzfile['mc_zone_edges'],
-                                    problem_args.num_mc_zones)
-
-    if not problem_args.skip_nn:
-        nn_an_flux = analytic_soln(npzfile['nn_zone_centers'], problem_args)
-    sn_an_flux = analytic_soln(npzfile['sn_zone_edges'], problem_args)
-    mc_an_flux = analytic_soln(mc_zone_centers, problem_args)
-
-    if myargs.verbose:
-        print('mc_zone_centers')
-        print(mc_zone_centers)
-        print('mc_flux')
-        print(mc_flux)
-        print('mc_an_flux')
-        print(mc_an_flux)
-
-    if not problem_args.skip_nn:
-        nn_re = relative_error(npzfile['nn_flux'], nn_an_flux)
-    sn_re = relative_error(npzfile['sn_flux'], sn_an_flux)
-    mc_re = relative_error(mc_flux, mc_an_flux)
-
-    if 'nn' in myargs.algorithms:
-        if problem_args.skip_nn:
-            raise RuntimeError('Cannot plot nn relative error, nn was skipped')
-        plt.plot(npzfile['nn_zone_centers'], nn_re, label='nn')
-    if 'sn' in myargs.algorithms:
-        plt.plot(npzfile['sn_zone_edges'], sn_re, label='sn')
-    if 'mc' in myargs.algorithms:
-        plt.plot(mc_zone_centers, mc_re, label='mc')
-    plt.legend()
-    plt.xlabel('z coordinate')
-    plt.ylabel('relative error')
-    show_or_save(myargs.show, myargs.problem, 're')
-
-    if not problem_args.skip_nn:
-        nn_mre = get_max_relative_error(nn_re, npzfile['nn_zone_centers'])
-    sn_mre = get_max_relative_error(sn_re, npzfile['sn_zone_edges'])
-    mc_mre = get_max_relative_error(mc_re, mc_zone_centers)
-
-    hdr_fmt = '%2s %10s %10s'
-    tbl_fmt = '%2s %10f %10.2f'
-    print(hdr_fmt % ('', 'max(abs(re))', 'z_location'))
-    if not problem_args.skip_nn:
-        print(tbl_fmt % ('nn', nn_mre[0], nn_mre[1]))
-    print(tbl_fmt % ('sn', sn_mre[0], sn_mre[1]))
-    print(tbl_fmt % ('mc', mc_mre[0], mc_mre[1]))
+def relative_error(estimate, true):
+    return (true - estimate) / true
 
 
 def get_max_relative_error(re, z):
@@ -99,90 +28,107 @@ def get_max_relative_error(re, z):
     return max_re, max_z
 
 
-def analytic_soln(z, problem_args):
-    EPS = 1e-25
-    src_mag = problem_args.source_magnitude
-    sigma_t = problem_args.sigma_t
-    zstop = problem_args.zstop
-
-    return ((src_mag / sigma_t) -
-            (src_mag / (2 * sigma_t)) * (np.exp(-sigma_t * z) +
-                                         np.exp(sigma_t * (z - zstop))) +
-            (src_mag / 2) * (z * sp.exp1(sigma_t * z + EPS) +
-                             (zstop - z) * sp.exp1(sigma_t * (zstop - z)
-                                                   + EPS)))
+def edge2center(edge):
+    shifted = np.roll(edge, -1)
+    halfway = (shifted - edge) / 2
+    center = edge + halfway
+    return center[:-1]
 
 
-def plot_loss(myargs, problem_args, loss):
+def plot_loss(args, loss):
+    plotname = 'loss'
+    loss = load_pickle(f'{args.problem}.loss.pkl')
     plt.semilogy(np.arange(loss.size), loss)
     plt.xlabel('epoch')
     plt.ylabel(r'$\mathcal{L}$')
-    show_or_save(myargs.show, myargs.problem, 'loss')
+    plt.title(f'{args.problem} {plotname}')
+    show_or_save(args.show, args.problem, plotname)
 
 
-def plot_flux(myargs, problem_args, npzfile):
-    if not problem_args.skip_nn:
-        nn_flux = npzfile['nn_flux']
-        nn_zone_centers = npzfile['nn_zone_centers']
-        nn_label = 'nn'
+def get_algorithm2z_flux_pair(npzfile):
+    edge = npzfile['edge']
+    algorithm2z_flux_pair = {}
+    if 'flux' in npzfile:
+        algorithm2z_flux_pair[None] = (edge, npzfile['flux'])
+    else:
+        if 'nn_flux' in npzfile:
+            algorithm2z_flux_pair['nn'] = (edge, npzfile['nn_flux'])
+        if 'mc_flux' in npzfile:
+            center = edge2center(edge)
+            algorithm2z_flux_pair['mc'] = (center, npzfile['mc_flux'])
+        if 'sn_flux' in npzfile:
+            algorithm2z_flux_pair['sn'] = (edge, npzfile['sn_flux'])
+    return algorithm2z_flux_pair
 
-    sn_flux = npzfile['sn_flux']
-    sn_zone_edges = npzfile['sn_zone_edges']
-    sn_label = 'sn'
 
-    mc_flux = npzfile['mc_flux']
-    mc_zone_centers = edges2centers(npzfile['mc_zone_edges'],
-                                    problem_args.num_mc_zones)
-    mc_label = 'mc'
+def print_algorithm2pair(args, algorithm2pair, suffix):
+    if args.verbose:
+        for algorithm, (z, y) in algorithm2pair.items():
+            if algorithm:
+                print(f'z: {z}')
+                print(f'{algorithm}_{suffix}: ', end='')
+            print(y)
+            print()
 
-    if myargs.problem == 'p1':
-        analytic_zone_edges = sn_zone_edges
-        analytic_flux = analytic_soln(analytic_zone_edges, problem_args)
 
-    if myargs.verbose:
-        print('analytic_zone_edges')
-        print(analytic_zone_edges)
-        print('analytic_flux')
-        print(analytic_flux)
-        print('mc_flux')
-        print(mc_flux)
-        print('mc_zone_centers')
-        print(mc_zone_centers)
-        if not problem_args.skip_nn:
-            print('nn_zone_centers')
-            print(nn_zone_centers)
-            print('nn_flux')
-            print(nn_flux)
+def plot_flux(args, npzfile):
+    plotname = 'flux'
+    algorithm2z_flux_pair = get_algorithm2z_flux_pair(npzfile)
+    print_algorithm2pair(args, algorithm2z_flux_pair, plotname)
 
-    plotname = 'flux_'
-    if 'nn' in myargs.algorithms:
-        if problem_args.skip_nn:
-            raise RuntimeError('Cannot plot nn flux, nn was skipped')
-        plt.plot(nn_zone_centers, nn_flux, label=nn_label)
-        plotname += 'nn'
-    if 'sn' in myargs.algorithms:
-        plt.plot(sn_zone_edges, sn_flux, label=sn_label)
-        plotname += 'sn'
-    if 'mc' in myargs.algorithms:
-        plt.plot(mc_zone_centers, mc_flux, label=mc_label)
-        plotname += 'mc'
-    if myargs.problem == 'p1' and 'an' in myargs.algorithms:
-        plt.plot(analytic_zone_edges, analytic_flux, label='analytic')
-        plotname += 'analytic'
-    plt.legend()
+    for algorithm, (z, flux) in algorithm2z_flux_pair.items():
+        if algorithm:
+            plt.plot(z, flux, label=algorithm)
+        else:
+            plt.plot(z, flux)
+
+    if any(algorithm2z_flux_pair.keys()):
+        plt.legend()
     plt.xlabel('z coordinate')
     plt.ylabel(r'$\phi(z)$')
-    show_or_save(myargs.show, myargs.problem, plotname)
+    plt.title(f'{args.problem} {plotname}')
+    show_or_save(args.show, args.problem, plotname)
 
 
-def relative_error(estimate, true):
-    return (true - estimate) / true
+def plot_relative_error(args, npzfile):
+    plotname = 're'
+
+    algorithm2z_flux_pair = get_algorithm2z_flux_pair(npzfile)
+    _, src_mag, sigma_t, zstop = \
+        analytic_full_slab.get_parameters_for(args.problem)
+
+    algorithm2z_re_pair = {}
+    algorithm2maxre_z_pair = {}
+    for algorithm, (z, flux) in algorithm2z_flux_pair.items():
+        analytic_soln = analytic_full_slab.solution(z, src_mag, sigma_t, zstop)
+        re = relative_error(flux, analytic_soln)
+        algorithm2z_re_pair[algorithm] = (z, re)
+        algorithm2maxre_z_pair[algorithm] = get_max_relative_error(re, z)
+
+    print_algorithm2pair(args, algorithm2z_re_pair, plotname)
+
+    for algorithm, (z, re) in algorithm2z_re_pair.items():
+        if algorithm:
+            plt.plot(z, re, label=algorithm)
+        else:
+            plt.plot(z, flux)
+
+    if any(algorithm2z_re_pair.keys()):
+        plt.legend()
+    plt.title(f'{args.problem} relative error')
+    plt.xlabel('z coordinate')
+    plt.ylabel('relative error')
+    show_or_save(args.show, args.problem, plotname)
+
+    print_maxre(algorithm2maxre_z_pair)
 
 
-def edges2centers(edges, num_zones):
-    shift_amount = (1. / num_zones) / 2
-    centers = (edges + shift_amount)[:-1]
-    return centers
+def print_maxre(algorithm2maxre_z_pair):
+    df = pd.DataFrame(algorithm2maxre_z_pair)
+    labels = 'max(abs(re)) z_location'.split()
+    column_mapper = {index: label for index, label in enumerate(labels)}
+    new_df = df.transpose().rename(columns=column_mapper)
+    print(new_df)
 
 
 def load_dict(fname):
@@ -196,27 +142,6 @@ def load_pickle(fname):
         return pickle.load(f)
 
 
-def main(myargs):
-    fname = problem2fname[myargs.problem]
-    npzfile = np.load('%s.npz' % fname)
-    problem_args = load_pickle('%s.args' % fname)
-    runtimes = load_dict('%s.time' % fname)
-    if not problem_args.skip_nn:
-        loss = load_pickle('%s.loss' % fname)
-    if 'z' in myargs.quants_to_analyze:
-        plot_z(myargs, problem_args, npzfile)
-    if 're' in myargs.quants_to_analyze:
-        plot_relative_error(myargs, problem_args, npzfile)
-    if 'flux' in myargs.quants_to_analyze:
-        plot_flux(myargs, problem_args, npzfile)
-    if 'time' in myargs.quants_to_analyze:
-        print_runtimes(runtimes)
-    if 'loss' in myargs.quants_to_analyze:
-        if problem_args.skip_nn:
-            raise RuntimeError('Cannot plot loss, nn was skipped')
-        plot_loss(myargs, problem_args, loss)
-
-
 def print_runtimes(runtimes):
     for algo, time in runtimes.items():
         print('%7s' % algo, '%.2e' % time)
@@ -228,42 +153,43 @@ def show_or_save(show, probname, plotname):
     else:
         if not os.path.exists('fig'):
             os.mkdir('fig')
-        plt.savefig('fig/%s%s.eps' % (probname, plotname))
+        plt.savefig('fig/%s%s.png' % (probname, plotname))
     plt.clf()
 
 
-def parse_args(input_args=None):
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-a', '--algorithms',
-                        type=str,
-                        choices=ALGORITHMS,
-                        default=ALGORITHMS,
-                        nargs='+',
-                        help='the algorithms to plot')
+def parse_args():
+    parser = argparse.ArgumentParser(
+                description=__doc__,
+                formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('problem',
+                        help='the name of the problem eg reedp1')
     parser.add_argument('-q', '--quants_to_analyze',
                         type=str,
                         choices=QUANTS,
-                        default='re',
+                        default='flux',
                         nargs='+',
                         help='the quantities to analyze')
-    parser.add_argument('-p', '--problem',
-                        type=str,
-                        choices=PROBLEMS,
-                        default='p1',
-                        help='the problem to analyze')
-    parser.add_argument('-v', '--verbose',
-                        action='store_true',
-                        help='verbose output')
     parser.add_argument('-s', '--show',
                         action='store_true',
                         help='show instead of save plot')
-
-    if input_args:
-        args = parser.parse_args(input_args)
-    else:
-        args = parser.parse_args()
-
+    parser.add_argument('-v', '--verbose',
+                        action='store_true',
+                        help='verbose output')
+    args = parser.parse_args()
     return args
+
+
+def main(args):
+    npzfile = np.load(f'{args.problem}.npz')
+    runtimes = load_dict(f'{args.problem}.time')
+    if 'flux' in args.quants_to_analyze:
+        plot_flux(args, npzfile)
+    if 're' in args.quants_to_analyze:
+        plot_relative_error(args, npzfile)
+    if 'time' in args.quants_to_analyze:
+        print_runtimes(runtimes)
+    if 'loss' in args.quants_to_analyze:
+        plot_loss(args, loss)
 
 
 if __name__ == '__main__':
