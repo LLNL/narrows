@@ -42,6 +42,8 @@ def _create_nn_object(deck, mesh):
                     mesh.sigma_s0.to_numpy(),
                     mesh.sigma_s1.to_numpy(),
                     mesh.source.to_numpy(),
+                    gamma_l=deck.ctrl.gamma_l,
+                    gamma_r=deck.ctrl.gamma_r,
                     eps=deck.ctrl.epsilon,
                     tensorboard=deck.ctrl.tensorboard,
                     interval=deck.ctrl.interval)

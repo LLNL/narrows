@@ -68,6 +68,8 @@ class _Ctrl():
                  sn=False,
                  epsilon=1e-13,
                  learning_rate=1e-3,
+                 gamma_l=50,
+                 gamma_r=50,
                  tensorboard=False,
                  interval=500,
                  sn_epsilon=1e-6,
@@ -86,6 +88,8 @@ class _Ctrl():
         self.sn = bool(sn)
         self.epsilon = float(epsilon)
         self.learning_rate = float(learning_rate)
+        self.gamma_l = float(gamma_l)
+        self.gamma_r = float(gamma_r)
         self.tensorboard = bool(tensorboard)
         self.interval = int(interval)
         self.sn_epsilon = float(sn_epsilon)
@@ -108,6 +112,10 @@ class _Ctrl():
         assert self.epsilon > 0, 'epsilon must be > 0'
 
         assert self.learning_rate > 0, 'learning_rate must be > 0'
+
+        assert self.gamma_l > 0, 'gamma_l must be > 0'
+
+        assert self.gamma_r > 0, 'gamma_r must be > 0'
 
         assert self.interval > 0, 'interval must be > 0'
 
