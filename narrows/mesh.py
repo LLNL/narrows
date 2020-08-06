@@ -3,7 +3,7 @@ import pandas as pd
 
 
 def create_mesh(deck):
-    edges = [np.linspace(x.start, x.end, deck.ctrl.cells_per_region,
+    edges = [np.linspace(x.start, x.end, deck.ctrl.cells_per_region + 1,
                          dtype=np.float32) for x in deck.reg.values()]
     edges = np.unique(np.concatenate(edges))
     mats = [None] * len(edges)
