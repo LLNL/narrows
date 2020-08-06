@@ -4,8 +4,9 @@ Author: Kyle Bilton
 Date: 11/2018
 """
 import numpy as np
-import sys
 import torch
+
+from .writer import write
 
 
 class ANNSlabSolver(object):
@@ -16,7 +17,7 @@ class ANNSlabSolver(object):
 
     def __init__(self, N, n_nodes, edges, sigma_t, sigma_s0, sigma_s1, source,
                  gamma_l=50, gamma_r=50, learning_rate=1e-3, eps=1e-8,
-                 use_weights=False, tensorboard=False, verbose=False):
+                 use_weights=False, tensorboard=False, interval=500):
         """
         Parameters
         ==========
@@ -46,16 +47,13 @@ class ANNSlabSolver(object):
             Use updated residual weights in minimizing the loss.
         tensorboard : bool
             Use tensorboard.
-        verbose : bool
-            Output more information.
+        interval : int
+            Interval at which loss is printed.
         """
         ########################################
         # Angular Meshing
         ########################################
 
-        # Check that the quadrature order is nonzero and a multiple of two.
-        assert N > 0
-        assert N % 2 == 0
         self.N = N
 
         # Get the Legendre-Gauss quadratures
@@ -92,22 +90,17 @@ class ANNSlabSolver(object):
 
         self.n_nodes = n_nodes
 
-        self.verbose = verbose
         summary_writer = None
         if tensorboard:
             try:
                 from torch.utils.tensorboard import SummaryWriter
                 summary_writer = SummaryWriter()
             except Exception as e:
-                print('Skipping tensorboard, use --verbose_nn to see why or '
-                      'remove --tensorboard to silence this message.',
-                      file=sys.stderr)
-                if verbose:
-                    print(e, file=sys.stderr)
+                write('terse', 'Skipping tensorboard')
+                write('moderate', e, error=True)
 
         self._build_model(summary_writer)
 
-        assert learning_rate > 0
         self.learning_rate = learning_rate
         self.optimizer = torch.optim.Adam(self.model.parameters(),
                                           lr=learning_rate)
@@ -123,6 +116,8 @@ class ANNSlabSolver(object):
         self.gamma = torch.ones(len(self.z)).reshape(-1, 1)
         self.r_squared_opt = (eps / len(self.z) *
                               torch.ones(len(self.z)).reshape(-1, 1))
+
+        self.interval = interval
 
     def _build_model(self, summary_writer=None):
         """
@@ -181,12 +176,9 @@ class ANNSlabSolver(object):
 
         return torch.sum(loss)
 
-    def train(self, interval=500, num_iterations_estimate=2**20):
+    def train(self, num_iterations_estimate=2**20):
         """
         Train the neural network.
-
-        interval : int
-            Interval at which loss is printed.
         """
 
         loss_history = np.zeros(num_iterations_estimate)
@@ -202,8 +194,8 @@ class ANNSlabSolver(object):
             loss_history[it] = loss
 
             # Inspect the value of the loss
-            if it % interval == 0:
-                print(f'Iter {it}:', loss.item())
+            if it % self.interval == 0:
+                write('moderate', f'Iter {it}: {loss.item()}')
 
             self.optimizer.zero_grad()
 
@@ -219,6 +211,7 @@ class ANNSlabSolver(object):
             prev_loss = loss
 
             if err < self.eps:
+                write('moderate', f'Iter {it}: {loss}')
                 break
             it += 1
 

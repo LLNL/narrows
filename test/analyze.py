@@ -35,7 +35,7 @@ def edge2center(edge):
     return center[:-1]
 
 
-def plot_loss(args, loss):
+def plot_loss(args):
     plotname = 'loss'
     loss = load_pickle(f'{args.problem}.loss.pkl')
     plt.semilogy(np.arange(loss.size), loss)
@@ -189,7 +189,7 @@ def main(args):
     if 'time' in args.quants_to_analyze:
         print_runtimes(runtimes)
     if 'loss' in args.quants_to_analyze:
-        plot_loss(args, loss)
+        plot_loss(args)
 
 
 if __name__ == '__main__':

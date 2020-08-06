@@ -1,12 +1,12 @@
 import numpy as np
 
+from .writer import write
+
 SMALL_DOUBLE = 1e-10
 LARGE_DOUBLE = 1e50
 SCATTER_REACTION = 0
 ABSORB_REACTION = 1
 FMT_STRING = '%20s %s@'
-
-__version__ = '0.0.1'
 
 
 class Tally():
@@ -28,13 +28,13 @@ class Tally():
 
         neg_idx = np.where(dirs < 0)
         neg = True
-        self.flux_helper(neg_idx, angular_flux, particle_zone_idx, neg)
+        self._flux_helper(neg_idx, angular_flux, particle_zone_idx, neg)
 
         pos_idx = np.where(dirs > 0)
         neg = False
-        self.flux_helper(pos_idx, angular_flux, particle_zone_idx, neg)
+        self._flux_helper(pos_idx, angular_flux, particle_zone_idx, neg)
 
-    def flux_helper(self, idx, angular_flux, particle_zone_idx, neg):
+    def _flux_helper(self, idx, angular_flux, particle_zone_idx, neg):
         bincount = np.bincount(particle_zone_idx[idx], angular_flux[idx])
         padded_bincount = np.pad(bincount,
                                  (0, self._num_zones - len(bincount)),
@@ -48,9 +48,6 @@ class Tally():
 
     def get_flux(self):
         return (self._negcur + self._poscur) * self._particle_weight
-
-    def get_flux_squared(self):
-        return self._negcur2 + self._poscur2
 
     def escape(self, num_alive_before_left_escape,
                num_alive_before_right_escape, num_alive_after):
@@ -100,7 +97,7 @@ class Tally():
         return '\n'.join(string.split('@'))
 
 
-class Source():
+class _Source():
     def __init__(self, source, num_particles):
         self.source = source
         self.num_particles = num_particles
@@ -111,12 +108,12 @@ class Source():
         for src in self.source.values():
             magnitude_ratio = src.magnitude / magnitude_sum
             num_src_particles = round(magnitude_ratio * self.num_particles)
-            positions = sample_uniform(src.start, src.end, num_src_particles)
+            positions = _sample_uniform(src.start, src.end, num_src_particles)
             positions_per_src.append(positions)
         return np.concatenate(positions_per_src)
 
     def sample_direction_cosines(self):
-        return sample_uniform(-1, 1, self.num_particles)
+        return _sample_uniform(-1, 1, self.num_particles)
 
     def __repr__(self):
         string = ('Source:@ num_particles {self.num_particles}@ '
@@ -125,12 +122,11 @@ class Source():
         return '\n'.join([x.strip() for x in string.split('@')])
 
 
-class Particles():
-    def __init__(self, z, mu, tally, verbose):
+class _Particles():
+    def __init__(self, z, mu, tally):
         self.z = z
         self.mu = mu
         self.tally = tally
-        self.verbose = verbose
         self.segments = np.array([0] * len(z))
         self.alive = np.array([1] * len(z))
 
@@ -197,28 +193,28 @@ class Particles():
             num_escaped = self.tally.escape(num_alive_before_left_escape,
                                             num_alive_before_right_escape,
                                             np.sum(self.alive))
-            if self.verbose:
-                print('%9s %d' % ('ESCAPED', num_escaped))
+            action = 'ESCAPED'
+            write('verbose', f'{action:>9s} {num_escaped}')
 
     def absorb(self, particle_indices, particle_zone_idx):
         self.tally.absorb(particle_zone_idx)
-        if self.verbose:
-            print('%9s %d' % ('ABSORBED', len(particle_indices)))
+        action = 'ABSORBED'
+        write('verbose', f'{action:>9s} {len(particle_indices)}')
         self.alive[particle_indices] = False
 
     def scatter(self, particle_indices, sigma_s0, sigma_s1, edges):
         # TODO TALLY SCATTERING REACTION
-        if self.verbose:
-            print('%9s %d' % ('SCATTERED', len(particle_indices)))
+        action = 'SCATTERED'
+        write('verbose', f'{action:>9s} {len(particle_indices)}')
 
         # linearly-isotropic scattering outgoing direction sampling
         # formula is from the last page of hmw4_Hint.pdf
-        mubar = safe_divide(sigma_s1, sigma_s0)
+        mubar = _safe_divide(sigma_s1, sigma_s0)
         mubar_at_position = mubar[np.searchsorted(edges,
                                                   self.z[particle_indices])]
         three_mu_times_mubar = (3 * self.mu[particle_indices] *
                                 mubar_at_position)
-        u_neg1_pos1 = 2 * sample_uniform(size=len(particle_indices)) - 1
+        u_neg1_pos1 = 2 * _sample_uniform(size=len(particle_indices)) - 1
         self.mu[particle_indices] = ((2 * u_neg1_pos1 + three_mu_times_mubar) /
                                      (1 + np.sqrt(1 + three_mu_times_mubar *
                                                   (2 * u_neg1_pos1 +
@@ -236,7 +232,7 @@ class Particles():
         return '\n'.join(string.split('@'))
 
 
-def sample_dist_to_collision(positions, sigma_t, edges):
+def _sample_dist_to_collision(positions, sigma_t, edges):
     dist = np.zeros(positions.shape)
     sigma_t_at_position = sigma_t[np.searchsorted(edges, positions)]
 
@@ -245,30 +241,28 @@ def sample_dist_to_collision(positions, sigma_t, edges):
 
     idx_colliding = np.where(sigma_t_at_position != 0)
     len_idx_colliding = len(idx_colliding[0])
-    dist[idx_colliding] = (-np.log(sample_uniform(size=len_idx_colliding))
+    dist[idx_colliding] = (-np.log(_sample_uniform(size=len_idx_colliding))
                            / sigma_t_at_position[idx_colliding])
     return dist
 
 
-def sample_collision(positions, scatter_prob, edges):
+def _sample_collision(positions, scatter_prob, edges):
     scatter_prob_at_position = scatter_prob[np.searchsorted(edges, positions)]
-    variates = sample_uniform(size=len(positions))
+    variates = _sample_uniform(size=len(positions))
     return variates > scatter_prob_at_position
 
 
-def sample_uniform(low=0.0, high=1.0, size=1):
+def _sample_uniform(low=0.0, high=1.0, size=1):
     return np.random.uniform(low, high, size)
 
 
-def print_iteration_report(iteration_number, living_particle_indices,
-                           particles, verbose):
-    if verbose:
-        print('--%d--' % iteration_number)
-        print(particles)
-        print(particles.tally)
+def _iteration_report(iteration_number, living_particle_indices, particles):
+    write('verbose', f'--{iteration_number}--')
+    write('verbose', particles)
+    write('verbose', particles.tally)
 
 
-def safe_divide(a, b):
+def _safe_divide(a, b):
     assert a.shape == b.shape
     result = np.zeros(a.shape)
     idx = np.where(b != 0)
@@ -276,30 +270,22 @@ def safe_divide(a, b):
     return result
 
 
-def soft_zero(value):
-    if abs(value) < (SMALL_DOUBLE * 2):
-        return True
-    else:
-        return False
-
-
 def main(edges, sigma_t, sigma_s0, sigma_s1, source, num_particles,
-         num_physical_particles, max_num_segments, verbose):
+         num_physical_particles, max_num_segments):
 
-    scatter_prob = safe_divide(sigma_s0, sigma_s0 + sigma_t)
+    scatter_prob = _safe_divide(sigma_s0, sigma_s0 + sigma_t)
 
     tally = Tally(edges, num_particles, num_physical_particles)
-    src = Source(source, num_particles)
-    particles = Particles(src.sample_positions(),
-                          src.sample_direction_cosines(), tally, verbose)
+    src = _Source(source, num_particles)
+    particles = _Particles(src.sample_positions(),
+                           src.sample_direction_cosines(), tally)
 
     iteration_number = 0
     while np.any(particles.alive):
         living_particle_indices = particles.get_living_particle_indices()
-        print_iteration_report(iteration_number, living_particle_indices,
-                               particles, verbose)
+        _iteration_report(iteration_number, living_particle_indices, particles)
 
-        dist_to_collision = sample_dist_to_collision(
+        dist_to_collision = _sample_dist_to_collision(
                 particles.z[living_particle_indices], sigma_t, edges)
         (dist_to_boundary, particle_zone_idx) = (
                 particles.compute_dist_to_boundary(
@@ -328,8 +314,8 @@ def main(edges, sigma_t, sigma_s0, sigma_s1, source, num_particles,
         particles.move_particle(collision_particle_indices,
                                 collision_particle_distances,
                                 collision_particle_zone_idx)
-        collisions = sample_collision(particles.z[collision_particle_indices],
-                                      scatter_prob, edges)
+        collisions = _sample_collision(particles.z[collision_particle_indices],
+                                       scatter_prob, edges)
         particles.absorb(
                 collision_particle_indices[
                     np.where(collisions == ABSORB_REACTION)],
@@ -342,13 +328,11 @@ def main(edges, sigma_t, sigma_s0, sigma_s1, source, num_particles,
         iteration_number += 1
         max_seg_indices = particles.segments > max_num_segments
         if np.any(max_seg_indices):
-            print('Warning: Killing %d particles which achieved max num '
-                  'segments %d' % (len(max_seg_indices),
-                                   max_num_segments))
+            write('terse', 'Warning: Killing %d particles which achieved max '
+                  'num segments %d' % (len(max_seg_indices), max_num_segments))
             particles.alive[max_seg_indices] = False
 
-    if verbose:
-        print('--final state--')
-        print(particles)
+    write('verbose', '--final state--')
+    write('verbose', particles)
 
     return tally

@@ -3,6 +3,8 @@ import os
 import sys
 import yaml
 
+from . import writer
+
 
 def _make_input_attribute(yamlinput, inputkey):
     assert inputkey in yamlinput
@@ -57,12 +59,25 @@ class _Bc():
 
 
 class _Ctrl():
-    def __init__(self, ordinates=2, cells_per_region=2, hidden_layer_nodes=5,
-                 nn=True, mc=False, sn=False, epsilon=1e-13,
-                 learning_rate=1e-3, tensorboard=False, sn_epsilon=1e-6,
-                 num_particles=1e6, num_physical_particles=8.,
-                 max_num_segments=100, seed=0, max_num_iter=300,
-                 out='', verbose=False):
+    def __init__(self,
+                 ordinates=2,
+                 cells_per_region=2,
+                 hidden_layer_nodes=5,
+                 nn=True,
+                 mc=False,
+                 sn=False,
+                 epsilon=1e-13,
+                 learning_rate=1e-3,
+                 tensorboard=False,
+                 interval=500,
+                 sn_epsilon=1e-6,
+                 num_particles=1e6,
+                 num_physical_particles=8.,
+                 max_num_segments=100,
+                 seed=0,
+                 max_num_iter=300,
+                 out='',
+                 verb='moderate'):
         self.ordinates = int(ordinates)
         self.cells_per_region = int(cells_per_region)
         self.hidden_layer_nodes = int(hidden_layer_nodes)
@@ -71,15 +86,44 @@ class _Ctrl():
         self.sn = bool(sn)
         self.epsilon = float(epsilon)
         self.learning_rate = float(learning_rate)
-        self.tensorboard = tensorboard
+        self.tensorboard = bool(tensorboard)
+        self.interval = int(interval)
         self.sn_epsilon = float(sn_epsilon)
         self.num_particles = int(num_particles)
         self.num_physical_particles = int(num_physical_particles)
         self.max_num_segments = int(max_num_segments)
         self.seed = int(seed)
         self.max_num_iter = int(max_num_iter)
-        self.out = out
-        self.verbose = bool(verbose)
+        self.out = str(out)
+        self.verb = str(verb)
+
+    def validate(self):
+        assert self.ordinates > 0, 'ordinates must be > 0'
+        assert self.ordinates % 2 == 0, 'ordinates must be even'
+
+        assert self.cells_per_region > 0, 'cells_per_region must be > 0'
+
+        assert self.hidden_layer_nodes > 0, 'hidden_layer_nodes must be > 0'
+
+        assert self.epsilon > 0, 'epsilon must be > 0'
+
+        assert self.learning_rate > 0, 'learning_rate must be > 0'
+
+        assert self.interval > 0, 'interval must be > 0'
+
+        assert self.sn_epsilon > 0, 'sn_epsilon must be > 0'
+
+        assert self.num_particles > 0, 'num_particles must be > 0'
+
+        assert self.num_physical_particles > 0, ('num_physical_particles must '
+                                                 'be > 0')
+
+        assert self.max_num_segments > 0, 'max_num_segments must be > 0'
+
+        assert self.max_num_iter > 0, 'max_num_iter must be > 0'
+
+        keys = ' '.join(writer.verb2int.keys())
+        assert self.verb in writer.verb2int, f'verb should be one of: {keys}'
 
 
 class _Deck():
@@ -88,7 +132,11 @@ class _Deck():
     and checks to make sure the input is consistent.
     '''
 
-    def __init__(self, args):
+    def __init__(self, argv, args):
+        if argv:
+            self.argv = ['N/A'] + argv
+        else:
+            self.argv = sys.argv
 
         with open(args.yamlfile) as f:
             yamlinput = yaml.full_load(f)
@@ -110,7 +158,7 @@ class _Deck():
         self.ctrl = _Ctrl(**ctrl)
 
     def validate(self):
-        pass
+        self.ctrl.validate()
 
 
 def _parse_args(argv=None):
@@ -133,6 +181,7 @@ def _parse_args(argv=None):
 
 def parse_input(argv=None):
     args = _parse_args(argv)
-    deck = _Deck(args)
+    deck = _Deck(argv, args)
     deck.validate()
+    writer.initialize(deck.ctrl.verb, deck.ctrl.out)
     return deck

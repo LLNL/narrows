@@ -1,11 +1,18 @@
+from datetime import datetime
 import numpy as np
 import pickle
+from pytz import timezone
+from socket import gethostname
 import time
 import torch
+import yaml
 
 from .nn import ANNSlabSolver
 from .mc1d import main as mc1dmain
 from .sn1d import main as sn1dmain
+
+from .writer import write
+from .version import get_version
 
 
 def _predict_nn(nn_solver, z=None):
@@ -16,7 +23,7 @@ def _predict_nn(nn_solver, z=None):
 
 
 def _train_nn(output_name, nn_solver):
-    print("Training neural network")
+    write('moderate', 'Training neural network')
     start = time.time()
     loss_history = nn_solver.train()
     training_runtime = time.time() - start
@@ -27,15 +34,17 @@ def _train_nn(output_name, nn_solver):
 
 
 def _create_nn_object(deck, mesh):
-    nn_solver = ANNSlabSolver(deck.ctrl.ordinates,
-                              deck.ctrl.hidden_layer_nodes,
-                              mesh.edge.to_numpy(),
-                              mesh.sigma_t.to_numpy(),
-                              mesh.sigma_s0.to_numpy(),
-                              mesh.sigma_s1.to_numpy(),
-                              mesh.source.to_numpy(),
-                              eps=deck.ctrl.epsilon,
-                              tensorboard=deck.ctrl.tensorboard)
+    nn_solver = ANNSlabSolver(
+                    deck.ctrl.ordinates,
+                    deck.ctrl.hidden_layer_nodes,
+                    mesh.edge.to_numpy(),
+                    mesh.sigma_t.to_numpy(),
+                    mesh.sigma_s0.to_numpy(),
+                    mesh.sigma_s1.to_numpy(),
+                    mesh.source.to_numpy(),
+                    eps=deck.ctrl.epsilon,
+                    tensorboard=deck.ctrl.tensorboard,
+                    interval=deck.ctrl.interval)
     return nn_solver
 
 
@@ -51,6 +60,7 @@ def _run_nn(deck, mesh):
 
 
 def _run_mc(deck, mesh):
+    write('moderate', 'Running MC')
     start = time.time()
     tally = mc1dmain(mesh.edge.to_numpy(),
                      mesh.sigma_t.to_numpy(),
@@ -59,13 +69,13 @@ def _run_mc(deck, mesh):
                      deck.src,
                      deck.ctrl.num_particles,
                      deck.ctrl.num_physical_particles,
-                     deck.ctrl.max_num_segments,
-                     deck.ctrl.verbose)
+                     deck.ctrl.max_num_segments)
     runtime = time.time() - start
     return tally, runtime
 
 
 def _run_sn(deck, mesh):
+    write('moderate', 'Running SN')
     start = time.time()
     result = sn1dmain(mesh.edge.to_numpy(),
                       mesh.sigma_t.to_numpy(),
@@ -74,15 +84,35 @@ def _run_sn(deck, mesh):
                       mesh.source.to_numpy(),
                       deck.ctrl.ordinates,
                       deck.ctrl.sn_epsilon,
-                      deck.ctrl.max_num_iter,
-                      deck.ctrl.verbose)
+                      deck.ctrl.max_num_iter)
     runtime = time.time() - start
     return result, runtime
 
 
-def _print_banner(deck):
-    # TODO print copyright, version, etc.
-    pass
+def _print_banner(argv):
+    exe = argv[0]
+    args = ' '.join(argv[1:])
+    version = get_version()
+    computer_name = gethostname()
+    tz = timezone('US/Pacific')
+    now = tz.localize(datetime.now())
+    run_date = now.strftime('%d %B %Y (%A)')
+    run_time = now.strftime('%H:%M:%S %z')
+    write('moderate', f'Executable       : {exe}')
+    write('moderate', f'Command line args: {args}')
+    write('moderate', f'Narrows version  : {version}')
+    write('moderate', f'Computer name    : {computer_name}')
+    write('moderate', f'Run date         : {run_date}')
+    write('moderate', f'Run time         : {run_time}')
+    write('moderate', '')
+    write('verbose', 'Copyright (c) 2020')
+    write('verbose', 'Lawrence Livermore National Security, LLC')
+    write('verbose', 'All Rights Reserved')
+    write('verbose', '')
+
+
+def _write_input(yamlinput):
+    write('none', yaml.dump(yamlinput), file_only=True)
 
 
 def _set_seed(deck):
@@ -90,8 +120,8 @@ def _set_seed(deck):
     torch.manual_seed(deck.ctrl.seed)
 
 
-def _write_result(deck, mesh, nn_flux, train_time, pred_time, tally, mc_time,
-                  sn_result, sn_time):
+def _output_result(deck, mesh, nn_flux, train_time, pred_time, tally, mc_time,
+                   sn_result, sn_time):
     number_of_algorithms = sum([deck.ctrl.nn, deck.ctrl.mc, deck.ctrl.sn])
     output = {'edge': mesh.edge}
     runtimes = {}
@@ -118,7 +148,7 @@ def _write_result(deck, mesh, nn_flux, train_time, pred_time, tally, mc_time,
             output['sn_flux'] = sn_result.I0
             runtimes['sn_time'] = sn_time
     else:
-        print('No flux calculated.')
+        write('terse', 'No flux calculated.')
 
     np.savez(f'{deck.ctrl.out}.npz', **output)
 
@@ -127,7 +157,8 @@ def _write_result(deck, mesh, nn_flux, train_time, pred_time, tally, mc_time,
 
 
 def run(deck, mesh):
-    _print_banner(deck)
+    _print_banner(deck.argv)
+    _write_input(deck.yamlinput)
     _set_seed(deck)
 
     nn_flux = train_time = pred_time = tally = mc_time = sn_result = sn_time \
@@ -139,6 +170,6 @@ def run(deck, mesh):
     if deck.ctrl.sn:
         sn_result, sn_time = _run_sn(deck, mesh)
 
-    _write_result(deck, mesh, nn_flux, train_time, pred_time, tally, mc_time,
-                  sn_result, sn_time)
+    _output_result(deck, mesh, nn_flux, train_time, pred_time, tally, mc_time,
+                   sn_result, sn_time)
     return 0
