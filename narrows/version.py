@@ -2,11 +2,33 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 
 import narrows
 
 
-def get_version():
+def get_dependency_versions():
+    top_level = _get_top_level_of_repo()
+    req_path = top_level / 'requirements.txt'
+
+    if os.path.exists(req_path):
+        with open(req_path) as f:
+            lines = f.read()
+        matches = re.finditer(r'([^>=<]+)[>=<].*\n', lines)
+
+        dependencies = [m.group(1) for m in matches]
+        names = map(lambda x: 'yaml' if x == 'pyyaml' else x, dependencies)
+        versions = [__import__(n).__version__ for n in names]
+        return zip(dependencies, versions)
+
+    return None
+
+
+def get_python_version():
+    return '.'.join(str(x) for x in sys.version_info[:3])
+
+
+def get_narrows_version():
     '''Get a descriptive version of this instance of Narrows.
     Function taken from Spack.
 
@@ -19,7 +41,7 @@ def get_version():
     the real narrows release number (e.g., 0.0.1).
     '''
 
-    top_level = Path(__file__).parent.parent
+    top_level = _get_top_level_of_repo()
     git_path = top_level / '.git'
     if os.path.exists(git_path):
         desc, _, returncode = _git('describe', '--tags', fail_on_error=False)
@@ -30,6 +52,10 @@ def get_version():
                 return f'{v}-{n}-{commit}'
 
     return narrows.__version__
+
+
+def _get_top_level_of_repo():
+    return Path(__file__).parent.parent
 
 
 def _shell(cmd, cwd=None, fail_on_error=True):
