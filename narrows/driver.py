@@ -57,8 +57,9 @@ def _run_nn(deck, mesh):
     loss_history, train_time = _train_nn(deck.ctrl.out, nn_solver)
     flux, pred_time = _predict_nn(nn_solver)
 
-    with open(f'{deck.ctrl.out}.nn.pkl', 'wb') as f:
-        pickle.dump(nn_solver, f)
+    if deck.ctrl.write_nn:
+        with open(f'{deck.ctrl.out}.nn.pkl', 'wb') as f:
+            pickle.dump(nn_solver, f)
 
     return flux, loss_history, train_time, pred_time
 
