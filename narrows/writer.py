@@ -26,3 +26,7 @@ def initialize(verb, output_file):
     VERBOSITY = verb2int[verb]
     OUTPUT_FILE = open(f'{output_file}.out', 'w')
     INITIALIZED = True
+
+
+def close():
+    OUTPUT_FILE.close()

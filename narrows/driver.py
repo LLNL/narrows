@@ -12,7 +12,10 @@ from .nn import ANNSlabSolver
 from .mc1d import main as mc1dmain
 from .sn1d import main as sn1dmain
 
-from .writer import write
+from .writer import (
+    write,
+    close
+)
 from .version import (
     get_narrows_version,
     get_python_version,
@@ -218,4 +221,9 @@ def run(deck, mesh):
 
     _output_result(deck, mesh, nn_flux, nn_loss, train_time, pred_time, tally,
                    mc_time, sn_result, sn_time)
+
+    write('terse', '')
+    write('terse', 'Narrows is finished.')
+    close()
+
     return 0
