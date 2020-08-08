@@ -16,6 +16,13 @@ ALGORITHMS = ['sn', 'mc', 'nn', 'an']
 
 FULL_SLAB = f'{MY_DIR}/../full_slab'
 
+TESTS = '''
+skip_nn
+analytic
+nn
+tensorboard
+'''.split()
+
 
 def assert_flux_equal(baseline_npzfile, npzfile,
                       algorithms=ALGORITHMS):
@@ -38,7 +45,8 @@ def run_test(function, algorithms=ALGORITHMS):
     assert_flux_equal(*npzfiles, algorithms=algorithms)
 
 
-def baseline(function, skip_out_file=False):
+def baseline(test, skip_out_file=False):
+    function = globals()[test]
     problem = function()
 
     # Baseline .npz file
@@ -53,6 +61,14 @@ def baseline(function, skip_out_file=False):
         shutil.copyfile(src, dest)
 
 
+def baseline_all():
+    for test in TESTS:
+        if test == 'analytic':
+            baseline(test, skip_out_file=True)
+        else:
+            baseline(test)
+
+
 def skip_nn():
     problem = 'fs_skip_nn'
     argv = (f'{FULL_SLAB}.yaml '
@@ -64,10 +80,6 @@ def skip_nn():
 
 def test_skip_nn():
     run_test(skip_nn, algorithms=['sn', 'mc'])
-
-
-def baseline_skip_nn():
-    baseline(skip_nn)
 
 
 def analytic():
@@ -85,10 +97,6 @@ def analytic():
 
 def test_analytic():
     run_test(analytic, algorithms=['an'])
-
-
-def baseline_analytic():
-    baseline(analytic, skip_out_file=True)
 
 
 def get_deck_and_mesh(argv):
@@ -110,10 +118,6 @@ def test_nn():
     run_test(nn, algorithms=['nn'])
 
 
-def baseline_nn():
-    baseline(nn)
-
-
 def tensorboard():
     problem = 'fs_tensorboard'
     argv = (f'{FULL_SLAB}.yaml '
@@ -130,14 +134,3 @@ def tensorboard():
 def test_tensorboard():
     run_test(tensorboard, algorithms=['nn'])
     assert os.path.exists('runs')
-
-
-def baseline_tensorboard():
-    baseline(tensorboard)
-
-
-def baseline_all():
-    baseline_skip_nn()
-    baseline_analytic()
-    baseline_nn()
-    baseline_tensorboard()
