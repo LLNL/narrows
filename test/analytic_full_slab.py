@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
+import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 import scipy.special as sp
 import sys
-
-import analyze
 
 MY_DIR = os.path.dirname(__file__)
 sys.path.append(f'{MY_DIR}/..')
@@ -35,7 +34,13 @@ def plot_analytic_flux(show, problem):
     plt.xlabel('z coordinate')
     plt.ylabel(r'$\phi(z)$')
     plt.title(f'{problem} flux')
-    analyze.show_or_save(show, problem, '_analytic_flux')
+
+    if show:
+        plt.show()
+    else:
+        if not os.path.exists('fig'):
+            os.mkdir('fig')
+        plt.savefig(f'fig/{problem}_analytic_flux.png')
 
 
 def get_parameters_for(problem):
@@ -49,5 +54,17 @@ def get_parameters_for(problem):
     return mesh.edge, src_mag, sigma_t, zstop
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(
+                description='Plot analytic flux for full_slab.yaml',
+                formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('-s', '--show',
+                        action='store_true',
+                        help='show instead of save plot')
+    args = parser.parse_args()
+    return args
+
+
 if __name__ == '__main__':
-    plot_analytic_flux(False, 'full_slab')
+    args = parse_args()
+    plot_analytic_flux(args.show, 'full_slab')

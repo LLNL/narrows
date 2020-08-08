@@ -2,7 +2,10 @@ import sys
 
 from .parse import parse_input
 from .mesh import create_mesh
-from .driver import run
+from .driver import (
+    run,
+    get_runtimes
+)
 
 version_info = (0, 0, 1)
 
@@ -20,3 +23,6 @@ def main(argv=None):
         return _real_main(argv)
     except KeyboardInterrupt:
         sys.exit('\nERROR: Interrupted by user')
+
+
+__all__ = ['parse_input', 'create_mesh', 'run', 'get_runtimes']

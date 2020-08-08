@@ -1,5 +1,6 @@
 from datetime import datetime
 import numpy as np
+import pandas as pd
 import pickle
 from pytz import timezone
 from socket import gethostname
@@ -142,38 +143,63 @@ def _output_result(deck, mesh, nn_flux, nn_loss, train_time, pred_time, tally,
                    mc_time, sn_result, sn_time):
     number_of_algorithms = sum([deck.ctrl.nn, deck.ctrl.mc, deck.ctrl.sn])
     output = {'edge': mesh.edge}
-    runtimes = {}
     if number_of_algorithms == 1:
         if deck.ctrl.nn:
             output['flux'] = nn_flux
             output['loss'] = nn_loss
-            runtimes['train_time'] = train_time
-            runtimes['pred_time'] = pred_time
+            output['train_time'] = train_time
+            output['pred_time'] = pred_time
         if deck.ctrl.mc:
             output['flux'] = tally.get_flux()
-            runtimes['time'] = mc_time
+            output['time'] = mc_time
         if deck.ctrl.sn:
             output['flux'] = sn_result.I0
-            runtimes['time'] = sn_time
+            output['time'] = sn_time
     elif number_of_algorithms > 1:
         if deck.ctrl.nn:
             output['nn_flux'] = nn_flux
             output['loss'] = nn_loss
-            runtimes['train_time'] = train_time
-            runtimes['pred_time'] = pred_time
+            output['train_time'] = train_time
+            output['pred_time'] = pred_time
         if deck.ctrl.mc:
             output['mc_flux'] = tally.get_flux()
-            runtimes['mc_time'] = mc_time
+            output['mc_time'] = mc_time
         if deck.ctrl.sn:
             output['sn_flux'] = sn_result.I0
-            runtimes['sn_time'] = sn_time
+            output['sn_time'] = sn_time
     else:
         write('terse', 'No flux calculated.')
 
     np.savez(f'{deck.ctrl.out}.npz', **output)
 
-    with open(f'{deck.ctrl.out}.time', 'w') as f:
-        f.write('%s\n' % str(runtimes))
+    write('moderate', get_runtimes(output))
+
+
+def get_runtimes(output):
+    if 'time' in output:
+        runtime = output['time']
+        return f'Runtime {runtime:.2e}'
+    else:
+        runtimes = {}
+        runtime2column = {}
+
+        if 'train_time' in output:
+            runtimes['train_time'] = output['train_time']
+            runtime2column['train_time'] = 'Train'
+        if 'pred_time' in output:
+            runtimes['pred_time'] = output['pred_time']
+            runtime2column['pred_time'] = 'Predict'
+        if 'mc_time' in output:
+            runtimes['mc_time'] = output['mc_time']
+            runtime2column['mc_time'] = 'MC'
+        if 'sn_time' in output:
+            runtimes['sn_time'] = output['sn_time']
+            runtime2column['sn_time'] = 'SN'
+
+        df = pd.DataFrame(runtimes, index=['Runtime'])
+        df.rename(columns=runtime2column, inplace=True)
+        pd.set_option('display.float_format', lambda x: '%.2e' % x)
+        return df.transpose()
 
 
 def run(deck, mesh):

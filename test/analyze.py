@@ -10,7 +10,12 @@ import os
 import pandas as pd
 import pickle
 
-import analytic_full_slab
+from analytic_full_slab import (
+    get_parameters_for,
+    solution
+)
+
+from narrows import get_runtimes
 
 plt.style.use(f'{os.path.dirname(__file__)}/style.mplstyle')
 
@@ -94,13 +99,12 @@ def plot_relative_error(args, npzfile):
     plotname = 're'
 
     algorithm2z_flux_pair = get_algorithm2z_flux_pair(npzfile)
-    _, src_mag, sigma_t, zstop = \
-        analytic_full_slab.get_parameters_for(args.problem)
+    _, src_mag, sigma_t, zstop = get_parameters_for(args.problem)
 
     algorithm2z_re_pair = {}
     algorithm2maxre_z_pair = {}
     for algorithm, (z, flux) in algorithm2z_flux_pair.items():
-        analytic_soln = analytic_full_slab.solution(z, src_mag, sigma_t, zstop)
+        analytic_soln = solution(z, src_mag, sigma_t, zstop)
         re = relative_error(flux, analytic_soln)
         algorithm2z_re_pair[algorithm] = (z, re)
         algorithm2maxre_z_pair[algorithm] = get_max_relative_error(re, z)
@@ -131,29 +135,18 @@ def print_maxre(algorithm2maxre_z_pair):
     print(new_df)
 
 
-def load_dict(fname):
-    with open(fname) as f:
-        lines = f.readlines()
-    return eval(lines[0][:-1])
-
-
 def load_pickle(fname):
     with open(fname, 'rb') as f:
         return pickle.load(f)
 
 
-def print_runtimes(runtimes):
-    for algo, time in runtimes.items():
-        print('%7s' % algo, '%.2e' % time)
-
-
-def show_or_save(show, probname, plotname):
+def show_or_save(show, problem, plotname):
     if show:
         plt.show()
     else:
         if not os.path.exists('fig'):
             os.mkdir('fig')
-        plt.savefig('fig/%s%s.png' % (probname, plotname))
+        plt.savefig(f'fig/{problem}{plotname}.png')
     plt.clf()
 
 
@@ -181,13 +174,12 @@ def parse_args():
 
 def main(args):
     npzfile = np.load(f'{args.problem}.npz')
-    runtimes = load_dict(f'{args.problem}.time')
     if 'flux' in args.quants_to_analyze:
         plot_flux(args, npzfile)
     if 're' in args.quants_to_analyze:
         plot_relative_error(args, npzfile)
     if 'time' in args.quants_to_analyze:
-        print_runtimes(runtimes)
+        print(get_runtimes(npzfile))
     if 'loss' in args.quants_to_analyze:
         plot_loss(args, npzfile)
 

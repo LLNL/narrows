@@ -54,13 +54,12 @@ def run_scaling_study():
         narrows.main([f'{problem}.yaml', '-d', 'epsilon=1.e-1'])
 
         npzfile = np.load(f'{problem}.npz')
-        runtimes = analyze.load_dict(f'{problem}.time')
 
         results[scale] = {'edge': npzfile['edge'],
                           'nn_flux': npzfile['nn_flux'],
-                          'nn_pred_time': runtimes['pred_time'],
+                          'nn_pred_time': npzfile['pred_time'],
                           'sn_flux': npzfile['sn_flux'],
-                          'sn_runtime': runtimes['sn_time']}
+                          'sn_runtime': npzfile['sn_time']}
 
     out_fname = '%s.%dto%d.scaling' % (PROB, START, STOP)
     with open(out_fname, 'wb') as f:
