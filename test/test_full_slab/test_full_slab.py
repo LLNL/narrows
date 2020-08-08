@@ -38,11 +38,19 @@ def run_test(function, algorithms=ALGORITHMS):
     assert_flux_equal(*npzfiles, algorithms=algorithms)
 
 
-def baseline(function):
-    args = function()
-    src = f'{MY_DIR}/{args.problem_name}.npz'
-    dest = f'{MY_DIR}/{args.problem_name}.baseline.npz'
+def baseline(function, skip_out_file=False):
+    problem = function()
+
+    # Baseline .npz file
+    src = f'{MY_DIR}/{problem}.npz'
+    dest = f'{MY_DIR}/{problem}.baseline.npz'
     shutil.copyfile(src, dest)
+
+    if not skip_out_file:
+        # Baseline .out file
+        src = f'{MY_DIR}/{problem}.out'
+        dest = f'{MY_DIR}/{problem}.baseline.out'
+        shutil.copyfile(src, dest)
 
 
 def skip_nn():
@@ -80,7 +88,7 @@ def test_analytic():
 
 
 def baseline_analytic():
-    baseline(analytic)
+    baseline(analytic, skip_out_file=True)
 
 
 def get_deck_and_mesh(argv):
@@ -126,3 +134,10 @@ def test_tensorboard():
 
 def baseline_tensorboard():
     baseline(tensorboard)
+
+
+def baseline_all():
+    baseline_skip_nn()
+    baseline_analytic()
+    baseline_nn()
+    baseline_tensorboard()
