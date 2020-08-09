@@ -13,6 +13,7 @@ from .mc1d import main as mc1dmain
 from .sn1d import main as sn1dmain
 
 from .writer import (
+    initialize,
     write,
     close
 )
@@ -206,6 +207,7 @@ def get_runtimes(output):
 
 
 def run(deck, mesh):
+    initialize(deck.ctrl.verb, deck.ctrl.out)
     _print_banner(deck.argv)
     _write_input(deck.yamlinput)
     _set_seed(deck)

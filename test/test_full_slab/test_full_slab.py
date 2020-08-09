@@ -1,3 +1,8 @@
+'''
+This test checks that the flux calculated for the full slab input has not
+changed with respect to a baseline.
+'''
+
 import importlib
 import numpy as np
 import os
@@ -71,9 +76,11 @@ def baseline_all():
 
 def skip_nn():
     problem = 'fs_skip_nn'
-    argv = (f'{FULL_SLAB}.yaml '
-            f'-d nn=False '
-            f'-d out={problem}').split()
+    argv = f'''
+{FULL_SLAB}.yaml
+-d nn=False
+-d out={problem}
+'''.split()
     narrows.main(argv)
     return problem
 
@@ -107,9 +114,11 @@ def get_deck_and_mesh(argv):
 
 def nn():
     problem = 'fs_nn'
-    argv = (f'{FULL_SLAB}.yaml '
-            f'-d out={problem} '
-            f'-d epsilon=0.1').split()
+    argv = f'''
+{FULL_SLAB}.yaml
+-d out={problem}
+-d epsilon=0.1
+'''.split()
     narrows.main(argv)
     return problem
 
@@ -120,10 +129,12 @@ def test_nn():
 
 def tensorboard():
     problem = 'fs_tensorboard'
-    argv = (f'{FULL_SLAB}.yaml '
-            f'-d out={problem} '
-            f'-d epsilon=0.1 '
-            f'-d tensorboard=True').split()
+    argv = f'''
+{FULL_SLAB}.yaml
+-d out={problem}
+-d epsilon=0.1
+-d tensorboard=True
+'''.split()
     narrows.main(argv)
     return problem
 

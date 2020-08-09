@@ -9,10 +9,12 @@ import sys
 
 MY_DIR = os.path.dirname(__file__)
 sys.path.append(f'{MY_DIR}/..')
-import narrows  # noqa: E402
+from narrows import parse_input, create_mesh  # noqa: E402
 
+sys.path.append(f'{MY_DIR}')
+from utility import show_or_save  # noqa: E402
 
-plt.style.use(f'{os.path.dirname(__file__)}/style.mplstyle')
+plt.style.use(f'{MY_DIR}/style.mplstyle')
 
 
 def solution(z, src_mag, sigma_t, zstop):
@@ -34,18 +36,12 @@ def plot_analytic_flux(show, problem):
     plt.xlabel('z coordinate')
     plt.ylabel(r'$\phi(z)$')
     plt.title(f'{problem} flux')
-
-    if show:
-        plt.show()
-    else:
-        if not os.path.exists('fig'):
-            os.mkdir('fig')
-        plt.savefig(f'fig/{problem}_analytic_flux.png')
+    show_or_save(show, problem, 'analytic_flux')
 
 
 def get_parameters_for(problem):
-    deck = narrows.parse_input([f'{problem}.yaml'])
-    mesh = narrows.create_mesh(deck)
+    deck = parse_input([f'{problem}.yaml'])
+    mesh = create_mesh(deck)
 
     src_mag = deck.src['src1'].magnitude
     sigma_t = deck.mat['mat1'].sigma_a + deck.mat['mat1'].sigma_s0
@@ -54,17 +50,24 @@ def get_parameters_for(problem):
     return mesh.edge, src_mag, sigma_t, zstop
 
 
-def parse_args():
+def parse_args(argv):
+    if argv is None:
+        argv = sys.argv[1:]
+
     parser = argparse.ArgumentParser(
                 description='Plot analytic flux for full_slab.yaml',
                 formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('-s', '--show',
                         action='store_true',
                         help='show instead of save plot')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     return args
 
 
+def main(argv=None):
+    args = parse_args(argv)
+    plot_analytic_flux(args.show, f'{MY_DIR}/full_slab')
+
+
 if __name__ == '__main__':
-    args = parse_args()
-    plot_analytic_flux(args.show, 'full_slab')
+    main()

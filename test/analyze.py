@@ -8,16 +8,25 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
-import pickle
+import sys
 
 from analytic_full_slab import (
     get_parameters_for,
     solution
 )
 
-from narrows import get_runtimes
+MY_DIR = os.path.dirname(__file__)
+sys.path.append(f'{MY_DIR}/..')
+from narrows import (  # noqa: E402
+    get_runtimes
+)
 
-plt.style.use(f'{os.path.dirname(__file__)}/style.mplstyle')
+sys.path.append(f'{MY_DIR}')
+from utility import (  # noqa: E402
+    show_or_save
+)
+
+plt.style.use(f'{MY_DIR}/style.mplstyle')
 
 QUANTS = ['flux', 're', 'time', 'loss']
 
@@ -135,22 +144,10 @@ def print_maxre(algorithm2maxre_z_pair):
     print(new_df)
 
 
-def load_pickle(fname):
-    with open(fname, 'rb') as f:
-        return pickle.load(f)
+def parse_args(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
 
-
-def show_or_save(show, problem, plotname):
-    if show:
-        plt.show()
-    else:
-        if not os.path.exists('fig'):
-            os.mkdir('fig')
-        plt.savefig(f'fig/{problem}{plotname}.png')
-    plt.clf()
-
-
-def parse_args():
     parser = argparse.ArgumentParser(
                 description=__doc__,
                 formatter_class=argparse.RawTextHelpFormatter)
@@ -168,11 +165,12 @@ def parse_args():
     parser.add_argument('-v', '--verbose',
                         action='store_true',
                         help='verbose output')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     return args
 
 
-def main(args):
+def main(argv=None):
+    args = parse_args(argv)
     npzfile = np.load(f'{args.problem}.npz')
     if 'flux' in args.quants_to_analyze:
         plot_flux(args, npzfile)
@@ -185,5 +183,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    args = parse_args()
-    main(args)
+    main()

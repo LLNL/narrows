@@ -193,5 +193,4 @@ def parse_input(argv=None):
     args = _parse_args(argv)
     deck = _Deck(argv, args)
     deck.validate()
-    writer.initialize(deck.ctrl.verb, deck.ctrl.out)
     return deck

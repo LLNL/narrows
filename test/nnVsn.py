@@ -28,9 +28,9 @@ MY_DIR = os.path.dirname(__file__)
 sys.path.append(f'{MY_DIR}/..')
 import narrows  # noqa: E402
 
-plt.style.use('style.mplstyle')
+plt.style.use(f'{MY_DIR}/style.mplstyle')
 
-PROB = 'full_slab'
+PROB = f'{MY_DIR}/full_slab'
 START = 1
 STOP = 4
 SCALES = range(START, STOP + 1)
@@ -38,7 +38,7 @@ DOTTED = '--'
 POINTS = '.'
 
 
-def run_scaling_study():
+def run_scaling_study(epsilon):
     with open(f'{PROB}.yaml') as f:
         yamlinput = yaml.full_load(f)
     yamlinput['ctrl']['mc'] = False
@@ -51,7 +51,11 @@ def run_scaling_study():
         problem = f'{PROB}_{scale}'
         with open(f'{problem}.yaml', 'w') as f:
             yaml.dump(yamlinput, f)
-        narrows.main([f'{problem}.yaml', '-d', 'epsilon=1.e-1'])
+        argv = f'''
+{problem}.yaml
+-d epsilon={epsilon}
+-d verb=terse'''.split()
+        narrows.main(argv)
 
         npzfile = np.load(f'{problem}.npz')
 
@@ -85,7 +89,7 @@ def plot_errors(show, nn_errors, sn_errors):
     plt.title(f'{PROB} scaling study max relative error')
     plt.xlabel('number of zones')
     plt.ylabel('max relative error')
-    analyze.show_or_save(show, PROB, '_scalstud_re')
+    analyze.show_or_save(show, PROB, 'scalstud_re')
 
 
 def plot_times(show, nn_times, sn_times):
@@ -99,7 +103,7 @@ def plot_times(show, nn_times, sn_times):
     plt.ylabel('runtime (s)')
 
     print_times(nn_times, sn_times)
-    analyze.show_or_save(show, PROB, '_scalstud_time')
+    analyze.show_or_save(show, PROB, 'scalstud_time')
 
 
 def print_times(nn_times, sn_times):
@@ -150,23 +154,33 @@ def analyze_scaling_study(show, results):
     plot_times(show, nn_times, sn_times)
 
 
-def parse_args():
+def parse_args(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
+
     parser = argparse.ArgumentParser()
     parser.add_argument('-r', '--run',
                         action='store_true',
                         help='run the scaling study')
+    parser.add_argument('-e', '--epsilon',
+                        default=0.1,
+                        help='convergence criterion epsilon')
     parser.add_argument('-s', '--show',
                         action='store_true',
                         help='show plots')
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     return args
 
 
-if __name__ == '__main__':
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
     if args.run:
-        results = run_scaling_study()
+        results = run_scaling_study(args.epsilon)
     else:
         results = load_results()
         analyze_scaling_study(args.show, results)
+
+
+if __name__ == '__main__':
+    main()
