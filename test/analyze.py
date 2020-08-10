@@ -63,7 +63,9 @@ def get_algorithm2z_flux_pair(npzfile):
     edge = npzfile['edge']
     algorithm2z_flux_pair = {}
     if 'flux' in npzfile:
-        algorithm2z_flux_pair[None] = (edge, npzfile['flux'])
+        algorithm = npzfile['algorithm'].item()
+        z = edge2center(edge) if algorithm == 'mc' else edge
+        algorithm2z_flux_pair[algorithm] = (z, npzfile['flux'])
     else:
         if 'nn_flux' in npzfile:
             algorithm2z_flux_pair['nn'] = (edge, npzfile['nn_flux'])
@@ -78,7 +80,7 @@ def get_algorithm2z_flux_pair(npzfile):
 def print_algorithm2pair(args, algorithm2pair, suffix):
     if args.verbose:
         for algorithm, (z, y) in algorithm2pair.items():
-            if algorithm:
+            if len(algorithm2pair) > 1:
                 print(f'z: {z}')
                 print(f'{algorithm}_{suffix}: ', end='')
             print(y)
@@ -91,7 +93,7 @@ def plot_flux(args, npzfile):
     print_algorithm2pair(args, algorithm2z_flux_pair, plotname)
 
     for algorithm, (z, flux) in algorithm2z_flux_pair.items():
-        if algorithm:
+        if len(algorithm2z_flux_pair) > 1:
             plt.plot(z, flux, label=algorithm)
         else:
             plt.plot(z, flux)
@@ -121,7 +123,7 @@ def plot_relative_error(args, npzfile):
     print_algorithm2pair(args, algorithm2z_re_pair, plotname)
 
     for algorithm, (z, re) in algorithm2z_re_pair.items():
-        if algorithm:
+        if len(algorithm2z_re_pair) > 1:
             plt.plot(z, re, label=algorithm)
         else:
             plt.plot(z, flux)

@@ -149,14 +149,17 @@ def _output_result(deck, mesh, nn_flux, nn_loss, train_time, pred_time, tally,
     output = {'edge': mesh.edge}
     if number_of_algorithms == 1:
         if deck.ctrl.nn:
+            output['algorithm'] = 'nn'
             output['flux'] = nn_flux
             output['loss'] = nn_loss
             output['train_time'] = train_time
             output['pred_time'] = pred_time
         if deck.ctrl.mc:
+            output['algorithm'] = 'mc'
             output['flux'] = tally.get_flux()
             output['time'] = mc_time
         if deck.ctrl.sn:
+            output['algorithm'] = 'sn'
             output['flux'] = sn_result.I0
             output['time'] = sn_time
     elif number_of_algorithms > 1:
