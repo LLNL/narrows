@@ -77,12 +77,12 @@ class ANNSlabSolver(object):
         ########################################
         # Material properties
         ########################################
-        self.sigma_t = torch.from_numpy(sigma_t).unsqueeze(1).repeat(1, 4)
-        self.sigma_s0 = torch.from_numpy(sigma_s0).unsqueeze(1).repeat(1, 4)
-        self.sigma_s1 = torch.from_numpy(sigma_s1).unsqueeze(1).repeat(1, 4)
+        self.sigma_t = torch.from_numpy(sigma_t).unsqueeze(1).repeat(1, N)
+        self.sigma_s0 = torch.from_numpy(sigma_s0).unsqueeze(1).repeat(1, N)
+        self.sigma_s1 = torch.from_numpy(sigma_s1).unsqueeze(1).repeat(1, N)
 
         # Set data on the external source
-        self.Q_t = torch.from_numpy(source).unsqueeze(1).repeat(1, 4)
+        self.Q_t = torch.from_numpy(source).unsqueeze(1).repeat(1, N)
 
         ########################################
         # Neural Network Parameters
