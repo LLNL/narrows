@@ -18,7 +18,7 @@ Narrows is a small, open source, research project. Questions, discussion,
 and contributions are welcome. Contributions may include bugfixes,
 documentation, or even new features. Please submit a
 [pull request](https://help.github.com/articles/using-pull-requests/)
-with ``master`` as the destination branch in the
+with ``develop`` as the destination branch in the
 [Narrows repository](https://github.com/llnl/narrows).
 
 
