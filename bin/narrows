@@ -8,7 +8,8 @@ if sys.version_info[:2] < (3, 6):
 
 import os
 MY_DIR = os.path.dirname(__file__)
-sys.path.append(f'{MY_DIR}/..')
+narrows_path = os.path.join(MY_DIR, '..')
+sys.path.append(narrows_path)
 
 import narrows
 sys.exit(narrows.main())
