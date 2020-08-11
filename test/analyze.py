@@ -91,14 +91,15 @@ def plot_flux(args, npzfile):
     plotname = 'flux'
     algorithm2z_flux_pair = get_algorithm2z_flux_pair(npzfile)
     print_algorithm2pair(args, algorithm2z_flux_pair, plotname)
+    num_algorithms = len(algorithm2z_flux_pair)
 
     for algorithm, (z, flux) in algorithm2z_flux_pair.items():
-        if len(algorithm2z_flux_pair) > 1:
+        if num_algorithms > 1:
             plt.plot(z, flux, label=algorithm)
         else:
             plt.plot(z, flux)
 
-    if any(algorithm2z_flux_pair.keys()):
+    if num_algorithms > 1:
         plt.legend()
     plt.xlabel('z coordinate')
     plt.ylabel(r'$\phi(z)$')
@@ -108,8 +109,8 @@ def plot_flux(args, npzfile):
 
 def plot_relative_error(args, npzfile):
     plotname = 're'
-
     algorithm2z_flux_pair = get_algorithm2z_flux_pair(npzfile)
+
     _, src_mag, sigma_t, zstop = get_parameters_for(args.problem)
 
     algorithm2z_re_pair = {}
@@ -121,14 +122,15 @@ def plot_relative_error(args, npzfile):
         algorithm2maxre_z_pair[algorithm] = get_max_relative_error(re, z)
 
     print_algorithm2pair(args, algorithm2z_re_pair, plotname)
+    num_algorithms = len(algorithm2z_re_pair)
 
     for algorithm, (z, re) in algorithm2z_re_pair.items():
-        if len(algorithm2z_re_pair) > 1:
+        if num_algorithms > 1:
             plt.plot(z, re, label=algorithm)
         else:
             plt.plot(z, flux)
 
-    if any(algorithm2z_re_pair.keys()):
+    if num_algorithms > 1:
         plt.legend()
     plt.title(f'{args.problem} relative error')
     plt.xlabel('z coordinate')
