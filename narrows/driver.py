@@ -53,7 +53,8 @@ def _create_nn_object(deck, mesh):
                     gamma_r=deck.ctrl.gamma_r,
                     eps=deck.ctrl.epsilon,
                     tensorboard=deck.ctrl.tensorboard,
-                    interval=deck.ctrl.interval)
+                    interval=deck.ctrl.interval,
+                    gpu=deck.ctrl.gpu)
     return nn_solver
 
 

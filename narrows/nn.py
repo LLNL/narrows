@@ -17,7 +17,8 @@ class ANNSlabSolver(object):
 
     def __init__(self, N, n_nodes, edges, sigma_t, sigma_s0, sigma_s1, source,
                  gamma_l=50, gamma_r=50, learning_rate=1e-3, eps=1e-8,
-                 use_weights=False, tensorboard=False, interval=500):
+                 use_weights=False, tensorboard=False, interval=500,
+                 gpu=False):
         """
         Parameters
         ==========
@@ -49,7 +50,18 @@ class ANNSlabSolver(object):
             Use tensorboard.
         interval : int
             Interval at which loss is printed.
+        gpu : bool
+            Run on gpu
         """
+
+        self.device = torch.device('cpu')
+        self.gpu = False
+        if gpu:
+            if torch.cuda.is_available():
+                self.device = torch.device('cuda:0')
+                self.gpu = True
+            else:
+                write('terse', 'Skipping gpu')
         ########################################
         # Angular Meshing
         ########################################
@@ -61,14 +73,14 @@ class ANNSlabSolver(object):
         self.mu = mu
         self.w = w
         # Put the quadratures into tensors
-        mu_t = torch.tensor(mu.astype(np.float32))
-        w_t = torch.tensor(w.astype(np.float32))
+        mu_t = torch.tensor(mu.astype(np.float32), device=self.device)
+        w_t = torch.tensor(w.astype(np.float32), device=self.device)
         self.mu_t = mu_t
         self.w_t = w_t
 
         # Turn the edges into a PyTorch tensor, stacked as a column
         # (hence the [:,None])
-        self.z = torch.from_numpy(edges[:, None])
+        self.z = torch.from_numpy(edges[:, None]).to(self.device)
         # In this case, we want to track the gradients with respect to z,
         # so specify that here
         z_t = torch.autograd.Variable(self.z, requires_grad=True)
@@ -78,11 +90,17 @@ class ANNSlabSolver(object):
         # Material properties
         ########################################
         self.sigma_t = torch.from_numpy(sigma_t).unsqueeze(1).repeat(1, N)
+        self.sigma_t = self.sigma_t.to(self.device)
+
         self.sigma_s0 = torch.from_numpy(sigma_s0).unsqueeze(1).repeat(1, N)
+        self.sigma_s0 = self.sigma_s0.to(self.device)
+
         self.sigma_s1 = torch.from_numpy(sigma_s1).unsqueeze(1).repeat(1, N)
+        self.sigma_s1 = self.sigma_s1.to(self.device)
 
         # Set data on the external source
         self.Q_t = torch.from_numpy(source).unsqueeze(1).repeat(1, N)
+        self.Q_t = self.Q_t.to(self.device)
 
         ########################################
         # Neural Network Parameters
@@ -113,9 +131,13 @@ class ANNSlabSolver(object):
         self.eps = eps
 
         self.use_weights = use_weights
-        self.gamma = torch.ones(len(self.z)).reshape(-1, 1)
-        self.r_squared_opt = (eps / len(self.z) *
-                              torch.ones(len(self.z)).reshape(-1, 1))
+
+        num_points_z = len(self.z)
+        self.gamma = \
+            torch.ones(num_points_z, device=self.device).reshape(-1, 1)
+
+        ones = torch.ones(num_points_z, device=self.device).reshape(-1, 1)
+        self.r_squared_opt = (eps / num_points_z * ones)
 
         self.interval = interval
 
@@ -128,7 +150,11 @@ class ANNSlabSolver(object):
                                     torch.nn.Linear(self.n_nodes, self.N),)
         if summary_writer:
             summary_writer.add_graph(model, self.z_t)
-        self.model = model
+
+        if self.gpu:
+            self.model = model.cuda()
+        else:
+            self.model = model
 
     def _loss(self, y_pred, z):
         """
@@ -140,7 +166,7 @@ class ANNSlabSolver(object):
         phi_1 = torch.matmul(y_pred, self.mu_t * self.w_t).reshape(-1, 1)
 
         # Create a placeholder for the gradient
-        grad = torch.empty_like(y_pred)
+        grad = torch.empty_like(y_pred, device=self.device)
 
         # Compute the gradient of each output with respect to the input
         for idx in range(y_pred.shape[1]):
@@ -162,11 +188,14 @@ class ANNSlabSolver(object):
 
         # Use the previous squared error as the weights
         if self.use_weights:
-            rho = torch.max(torch.ones_like(self.r_squared),
-                            torch.abs(torch.log(self.r_squared_opt) /
-                                      torch.log(self.r_squared)))
+            ones = torch.ones_like(self.r_squared, device=self.device)
+            log1 = torch.log(self.r_squared_opt, device=self.device)
+            log2 = torch.log(self.r_squared, device=self.device)
+            rho = torch.max(ones, torch.abs(log1 / log2))
+
+            ones = torch.ones_like(rho, device=self.device)
             omega = phi_0 / phi_0.max()
-            self.gamma = torch.max(torch.ones_like(rho), rho / omega)
+            self.gamma = torch.max(ones, rho / omega, device=self.device)
 
         # Add a penalty relating to the boundary conditions
         loss += (0.5 * self.gamma_l *
@@ -217,7 +246,7 @@ class ANNSlabSolver(object):
 
         return np.trim_zeros(loss_history)
 
-    def _compute_scalar_flux(self, z=None, psi=None, numpy=False):
+    def _compute_scalar_flux(self, z=None, psi=None, done_training=False):
         """
         Compute the scalar flux at points z.
 
@@ -239,10 +268,13 @@ class ANNSlabSolver(object):
 
         phi_0 = torch.matmul(psi, self.w_t)
 
-        if not numpy:
-            return phi_0
+        if done_training:
+            if self.gpu:
+                return phi_0.detach().to('cpu').numpy()
+            else:
+                return phi_0.detach().numpy()
         else:
-            return phi_0.detach().numpy()
+            return phi_0
 
     def predict(self, z=None):
         """
@@ -262,8 +294,8 @@ class ANNSlabSolver(object):
 
         # Use the existing spatial values if none are provided
         if z is None:
-            return self._compute_scalar_flux(z=self.z_t, numpy=True)
+            return self._compute_scalar_flux(z=self.z_t, done_training=True)
 
         # Otherwise, compute flux on the new spatial values
-        return self._compute_scalar_flux(z=torch.tensor(z[:, None]),
-                                         numpy=True)
+        arg = torch.tensor(z[:, None], device=self.device)
+        return self._compute_scalar_flux(z=arg, done_training=True)

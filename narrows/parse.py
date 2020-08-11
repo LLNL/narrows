@@ -72,6 +72,7 @@ class _Ctrl():
                  gamma_r=50,
                  tensorboard=False,
                  interval=500,
+                 gpu=False,
                  write_nn=False,
                  sn_epsilon=1e-6,
                  num_particles=1e6,
@@ -93,6 +94,7 @@ class _Ctrl():
         self.gamma_r = float(gamma_r)
         self.tensorboard = bool(tensorboard)
         self.interval = int(interval)
+        self.gpu = bool(gpu)
         self.write_nn = bool(write_nn)
         self.sn_epsilon = float(sn_epsilon)
         self.num_particles = int(num_particles)
