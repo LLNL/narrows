@@ -10,7 +10,7 @@ FMT_STRING = '%20s %s@'
 
 
 class Tally():
-    def __init__(self, edges, num_particles, num_physical_particles):
+    def __init__(self, edges, num_particles):
         self._num_particles = float(num_particles)
         self._zone_lengths = edges[1:] - edges[:-1]
         self._num_zones = len(edges) - 1
@@ -21,10 +21,10 @@ class Tally():
         self._absorb = np.zeros(self._num_zones)
         self._left_escape_count = 0
         self._right_escape_count = 0
-        self._particle_weight = (num_physical_particles / num_particles)
 
-    def flux(self, dirs, distances, particle_zone_idx):
-        angular_flux = distances / self._zone_lengths[particle_zone_idx]
+    def flux(self, dirs, weights, distances, particle_zone_idx):
+        lengths = self._zone_lengths[particle_zone_idx]
+        angular_flux = (distances * weights) / lengths
 
         neg_idx = np.where(dirs < 0)
         neg = True
@@ -47,7 +47,7 @@ class Tally():
             self._poscur2 += padded_bincount * padded_bincount
 
     def get_flux(self):
-        return (self._negcur + self._poscur) * self._particle_weight
+        return self._negcur + self._poscur
 
     def escape(self, num_alive_before_left_escape,
                num_alive_before_right_escape, num_alive_after):
@@ -103,14 +103,21 @@ class _Source():
         self.num_particles = num_particles
 
     def sample_positions(self):
-        magnitude_sum = sum([src.magnitude for src in self.source.values()])
+        length_weighted_mags = [src.magnitude * (src.end - src.start)
+                                for src in self.source.values()]
         positions_per_src = []
-        for src in self.source.values():
-            magnitude_ratio = src.magnitude / magnitude_sum
+        weights_per_src = []
+        for lw_mag, src in zip(length_weighted_mags, self.source.values()):
+            magnitude_ratio = lw_mag / sum(length_weighted_mags)
             num_src_particles = round(magnitude_ratio * self.num_particles)
             positions = _sample_uniform(src.start, src.end, num_src_particles)
             positions_per_src.append(positions)
-        return np.concatenate(positions_per_src)
+            weights = np.full_like(positions, lw_mag / num_src_particles)
+            weights_per_src.append(weights)
+
+        positions = np.concatenate(positions_per_src)
+        weights = np.concatenate(weights_per_src)
+        return positions, weights
 
     def sample_direction_cosines(self):
         return _sample_uniform(-1, 1, self.num_particles)
@@ -123,8 +130,9 @@ class _Source():
 
 
 class _Particles():
-    def __init__(self, z, mu, tally):
+    def __init__(self, z, weight, mu, tally):
         self.z = z
+        self.weight = weight
         self.mu = mu
         self.tally = tally
         self.segments = np.array([0] * len(z))
@@ -171,7 +179,10 @@ class _Particles():
 
     def move_particle(self, particle_indices, distance, particle_zone_idx,
                       zstop=LARGE_DOUBLE):
-        self.tally.flux(self.mu[particle_indices], distance, particle_zone_idx)
+        self.tally.flux(self.mu[particle_indices],
+                        self.weight[particle_indices],
+                        distance,
+                        particle_zone_idx)
         self.segments[particle_indices] += 1
         horizontal_distance = ((distance + SMALL_DOUBLE) *
                                self.mu[particle_indices])
@@ -271,14 +282,16 @@ def _safe_divide(a, b):
 
 
 def main(edges, sigma_t, sigma_s0, sigma_s1, source, num_particles,
-         num_physical_particles, max_num_segments):
+         max_num_segments):
 
     scatter_prob = _safe_divide(sigma_s0, sigma_s0 + sigma_t)
 
-    tally = Tally(edges, num_particles, num_physical_particles)
+    tally = Tally(edges, num_particles)
     src = _Source(source, num_particles)
-    particles = _Particles(src.sample_positions(),
-                           src.sample_direction_cosines(), tally)
+
+    particles = _Particles(*src.sample_positions(),
+                           src.sample_direction_cosines(),
+                           tally)
 
     iteration_number = 0
     while np.any(particles.alive):

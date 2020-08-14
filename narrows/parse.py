@@ -76,7 +76,6 @@ class _Ctrl():
                  write_nn=False,
                  sn_epsilon=1e-6,
                  num_particles=1e6,
-                 num_physical_particles=8.,
                  max_num_segments=100,
                  seed=0,
                  max_num_iter=300,
@@ -98,7 +97,6 @@ class _Ctrl():
         self.write_nn = bool(write_nn)
         self.sn_epsilon = float(sn_epsilon)
         self.num_particles = int(num_particles)
-        self.num_physical_particles = int(num_physical_particles)
         self.max_num_segments = int(max_num_segments)
         self.seed = int(seed)
         self.max_num_iter = int(max_num_iter)
@@ -126,9 +124,6 @@ class _Ctrl():
         assert self.sn_epsilon > 0, 'sn_epsilon must be > 0'
 
         assert self.num_particles > 0, 'num_particles must be > 0'
-
-        assert self.num_physical_particles > 0, ('num_physical_particles must '
-                                                 'be > 0')
 
         assert self.max_num_segments > 0, 'max_num_segments must be > 0'
 

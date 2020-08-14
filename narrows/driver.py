@@ -79,7 +79,6 @@ def _run_mc(deck, mesh):
                      mesh.sigma_s1.to_numpy(),
                      deck.src,
                      deck.ctrl.num_particles,
-                     deck.ctrl.num_physical_particles,
                      deck.ctrl.max_num_segments)
     runtime = time.time() - start
     return tally, runtime
