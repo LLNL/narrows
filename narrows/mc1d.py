@@ -284,7 +284,7 @@ def _safe_divide(a, b):
 def main(edges, sigma_t, sigma_s0, sigma_s1, source, num_particles,
          max_num_segments):
 
-    scatter_prob = _safe_divide(sigma_s0, sigma_s0 + sigma_t)
+    scatter_prob = _safe_divide(sigma_s0, sigma_t)
 
     tally = Tally(edges, num_particles)
     src = _Source(source, num_particles)

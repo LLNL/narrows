@@ -17,20 +17,20 @@ from utility import show_or_save  # noqa: E402
 plt.style.use(f'{MY_DIR}/style.mplstyle')
 
 
-def solution(z, src_mag, sigma_t, zstop):
+def solution(z, src_mag, sigma_a, zstop):
     EPS = 1e-25
 
-    return ((src_mag / sigma_t) -
-            (src_mag / (2 * sigma_t)) * (np.exp(-sigma_t * z) +
-                                         np.exp(sigma_t * (z - zstop))) +
-            (src_mag / 2) * (z * sp.exp1(sigma_t * z + EPS) +
-                             (zstop - z) * sp.exp1(sigma_t * (zstop - z)
+    return ((src_mag / sigma_a) -
+            (src_mag / (2 * sigma_a)) * (np.exp(-sigma_a * z) +
+                                         np.exp(sigma_a * (z - zstop))) +
+            (src_mag / 2) * (z * sp.exp1(sigma_a * z + EPS) +
+                             (zstop - z) * sp.exp1(sigma_a * (zstop - z)
                                                    + EPS)))
 
 
 def plot_analytic_flux(show, problem):
-    z, src_mag, sigma_t, zstop = get_parameters_for(problem)
-    flux = solution(z, src_mag, sigma_t, zstop)
+    z, src_mag, sigma_a, zstop = get_parameters_for(problem)
+    flux = solution(z, src_mag, sigma_a, zstop)
     plt.plot(z, flux, label='analytic')
     plt.legend()
     plt.xlabel('z coordinate')
@@ -44,10 +44,10 @@ def get_parameters_for(problem):
     mesh = create_mesh(deck)
 
     src_mag = deck.src['src1'].magnitude
-    sigma_t = deck.mat['mat1'].sigma_a + deck.mat['mat1'].sigma_s0
+    sigma_a = deck.mat['mat1'].sigma_a
     zstop = deck.reg['reg1'].end
 
-    return mesh.edge, src_mag, sigma_t, zstop
+    return mesh.edge, src_mag, sigma_a, zstop
 
 
 def parse_args(argv):
