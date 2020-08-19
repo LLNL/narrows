@@ -28,13 +28,15 @@ nn
 tensorboard
 '''.split()
 
+RTOL = 1.9e-07
+
 
 def assert_flux_equal(baseline_npzfile, npzfile,
                       algorithms=ALGORITHMS):
     for algorithm in algorithms:
         baseline_flux = baseline_npzfile[f'{algorithm}_flux']
         new_flux = npzfile[f'{algorithm}_flux']
-        np.testing.assert_array_equal(baseline_flux, new_flux)
+        np.testing.assert_allclose(baseline_flux, new_flux, rtol=RTOL)
 
 
 def load_npzfiles(problem_name):
