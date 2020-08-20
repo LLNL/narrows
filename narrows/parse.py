@@ -23,7 +23,7 @@ def _instantiate(defs):
         key = define[:equal_index]
         try:
             exec(define, namespace)
-        except NameError:
+        except (NameError, SyntaxError):
             value = define[equal_index+1:]
             quoted_define = f'{key}="{value}"'
             exec(quoted_define, namespace)

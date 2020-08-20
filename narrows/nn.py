@@ -182,7 +182,8 @@ class ANNSlabSolver(object):
                        + 3 * self.mu_t * self.sigma_s1 * phi_1)
               - 0.5 * self.Q_t)**2
 
-        self.r_squared = l1.sum(1).reshape(-1, 1)
+        spatial_loss = l1.sum(1)
+        self.r_squared = spatial_loss.reshape(-1, 1)
         loss = 0.5 * torch.dot(self.gamma.flatten(),
                                self.r_squared.flatten()).reshape(1)
 
@@ -203,7 +204,7 @@ class ANNSlabSolver(object):
         loss += (0.5 * self.gamma_r *
                  ((y_pred[-1, :self.N//2])**2).sum().reshape(1))
 
-        return torch.sum(loss)
+        return torch.sum(loss), spatial_loss.detach().numpy()
 
     def train(self, num_iterations_estimate=2**20):
         """
@@ -219,7 +220,7 @@ class ANNSlabSolver(object):
             y_pred = self.model(self.z_t)
 
             # Compute the loss between the prediction and true value
-            loss = self._loss(y_pred, self.z_t)
+            loss, spatial_loss = self._loss(y_pred, self.z_t)
             loss_history[it] = loss
 
             # Inspect the value of the loss
@@ -244,7 +245,7 @@ class ANNSlabSolver(object):
                 break
             it += 1
 
-        return np.trim_zeros(loss_history)
+        return np.trim_zeros(loss_history), spatial_loss
 
     def _compute_scalar_flux(self, z=None, psi=None, done_training=False):
         """

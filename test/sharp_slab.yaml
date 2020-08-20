@@ -1,0 +1,35 @@
+ctrl:
+  ordinates: 4
+  cells_per_region: 20
+  hidden_layer_nodes: 5
+  mc: True
+
+mat:
+  mat1:
+    sigma_a: 50.0
+  mat2:
+    sigma_a: 0.0
+
+reg:
+  reg1:
+    start: 0.0
+    end: 1.0
+    mat: 'mat1'
+  reg2:
+    start: 1.0
+    end: 5.0
+    mat: 'mat2'
+
+src:
+  src1:
+    start: 0.0
+    end: 1.0
+    magnitude: 50.0
+
+bc:
+  bc1:
+    location: 0.0
+    behavior: 'vacuum'
+  bc1:
+    location: 5.0
+    behavior: 'vacuum'

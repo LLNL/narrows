@@ -28,7 +28,7 @@ from utility import (  # noqa: E402
 
 plt.style.use(f'{MY_DIR}/style.mplstyle')
 
-QUANTS = ['flux', 're', 'time', 'loss']
+QUANTS = ['flux', 're', 'time', 'loss', 'fluxloss']
 
 
 def relative_error(estimate, true):
@@ -87,22 +87,35 @@ def print_algorithm2pair(args, algorithm2pair, suffix):
             print()
 
 
-def plot_flux(args, npzfile):
+def plot_flux(args, npzfile, loss=False):
     plotname = 'flux'
+    if loss:
+        plotname += '_loss'
     algorithm2z_flux_pair = get_algorithm2z_flux_pair(npzfile)
     print_algorithm2pair(args, algorithm2z_flux_pair, plotname)
     num_algorithms = len(algorithm2z_flux_pair)
 
+    fig, ax1 = plt.subplots()
+
     for algorithm, (z, flux) in algorithm2z_flux_pair.items():
         if num_algorithms > 1:
-            plt.plot(z, flux, label=algorithm)
+            ax1.plot(z, flux, label=algorithm)
         else:
-            plt.plot(z, flux)
+            ax1.plot(z, flux)
+
+    ax1.set_xlabel('z coordinate')
+    ax1.set_ylabel(r'$\phi(z)$')
+
+    if loss:
+        ax2 = ax1.twinx()
+        ax2.set_ylabel('loss', color='r')
+        (z, _) = algorithm2z_flux_pair['nn']
+        ax2.plot(z, npzfile['spatial_loss'], color='r')
+        ax2.tick_params(axis='y', labelcolor='r')
 
     if num_algorithms > 1:
-        plt.legend()
-    plt.xlabel('z coordinate')
-    plt.ylabel(r'$\phi(z)$')
+        ax1.legend()
+
     plt.title(f'{args.problem} {plotname}')
     show_or_save(args.show, args.problem, plotname)
 
@@ -184,6 +197,8 @@ def main(argv=None):
         print(get_runtimes(npzfile))
     if 'loss' in args.quants_to_analyze:
         plot_loss(args, npzfile)
+    if 'fluxloss' in args.quants_to_analyze:
+        plot_flux(args, npzfile, loss=True)
 
 
 if __name__ == '__main__':
