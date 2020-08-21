@@ -87,6 +87,58 @@ def print_algorithm2pair(args, algorithm2pair, suffix):
             print()
 
 
+def plot_movie(args, npzfile):
+    plotname = 'flux'
+    algorithm2z_flux_pair = get_algorithm2z_flux_pair(npzfile)
+    (nn_z, _) = algorithm2z_flux_pair['nn']
+    del algorithm2z_flux_pair['nn']
+
+    if 'flux_history' in npzfile:
+        nn_flux_history = npzfile['flux_history']
+    else:
+        nn_flux_history = npzfile['nn_flux_history']
+
+    max_flux = max([nn_flux_history.max()] +
+                   [x[1].max() for x in algorithm2z_flux_pair.values()])
+    min_flux = min([nn_flux_history.min()] +
+                   [x[1].max() for x in algorithm2z_flux_pair.values()])
+
+    spatial_loss_history = npzfile['spatial_loss_history']
+    max_loss = spatial_loss_history.max()
+    min_loss = spatial_loss_history.min()
+
+    max_it = nn_flux_history.shape[0] * npzfile['hinterval']
+    max_num_digits = len(str(max_it))
+
+    fig, ax1 = plt.subplots()
+    ax2 = ax1.twinx()
+    for index, (nn_flux, spatial_loss) in enumerate(
+            zip(nn_flux_history, spatial_loss_history)):
+
+        it = index * npzfile['hinterval']
+        zero_padded_it = f'{it:0{max_num_digits}}'
+
+        ax1.set_ylim(ymin=min_flux, ymax=max_flux)
+        for algorithm, (z, flux) in algorithm2z_flux_pair.items():
+            ax1.plot(z, flux, label=algorithm)
+        ax1.plot(nn_z, nn_flux, label=f'nn {zero_padded_it}')
+
+        ax1.set_xlabel('z coordinate')
+        ax1.set_ylabel(r'$\phi(z)$')
+
+        ax2.set_ylabel('loss', color='r')
+        ax2.set_ylim(ymin=min_loss, ymax=max_loss)
+        ax2.semilogy(nn_z, spatial_loss, color='r')
+        ax2.tick_params(axis='y', labelcolor='r')
+
+        ax1.legend(loc='upper right')
+
+        plt.title(f'{args.problem} {plotname}')
+        show_or_save(args.show, args.problem, f'{plotname}_{zero_padded_it}')
+        ax1.clear()
+        ax2.clear()
+
+
 def plot_flux(args, npzfile, loss=False):
     plotname = 'flux'
     if loss:
@@ -176,6 +228,9 @@ def parse_args(argv=None):
                         default='flux',
                         nargs='+',
                         help='the quantities to analyze')
+    parser.add_argument('-m', '--movie',
+                        action='store_true',
+                        help='make a convergence movie')
     parser.add_argument('-s', '--show',
                         action='store_true',
                         help='show instead of save plot')
@@ -189,16 +244,19 @@ def parse_args(argv=None):
 def main(argv=None):
     args = parse_args(argv)
     npzfile = np.load(f'{args.problem}.npz')
-    if 'flux' in args.quants_to_analyze:
-        plot_flux(args, npzfile)
-    if 're' in args.quants_to_analyze:
-        plot_relative_error(args, npzfile)
-    if 'time' in args.quants_to_analyze:
-        print(get_runtimes(npzfile))
-    if 'loss' in args.quants_to_analyze:
-        plot_loss(args, npzfile)
-    if 'fluxloss' in args.quants_to_analyze:
-        plot_flux(args, npzfile, loss=True)
+    if args.movie:
+        plot_movie(args, npzfile)
+    else:
+        if 'flux' in args.quants_to_analyze:
+            plot_flux(args, npzfile)
+        if 're' in args.quants_to_analyze:
+            plot_relative_error(args, npzfile)
+        if 'time' in args.quants_to_analyze:
+            print(get_runtimes(npzfile))
+        if 'loss' in args.quants_to_analyze:
+            plot_loss(args, npzfile)
+        if 'fluxloss' in args.quants_to_analyze:
+            plot_flux(args, npzfile, loss=True)
 
 
 if __name__ == '__main__':

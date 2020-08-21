@@ -13,4 +13,3 @@ def show_or_save(show, problem, plotname):
         if not os.path.exists(f'{dirname}/fig'):
             os.mkdir(f'{dirname}/fig')
         plt.savefig(f'{dirname}/fig/{probname}_{plotname}.png')
-    plt.clf()

@@ -34,10 +34,10 @@ def _predict_nn(nn_solver, z=None):
 def _train_nn(output_name, nn_solver):
     write('terse', 'Training neural network')
     start = time.time()
-    loss_history, spatial_loss = nn_solver.train()
+    train_result = nn_solver.train()
     training_runtime = time.time() - start
 
-    return loss_history, spatial_loss, training_runtime
+    return train_result, training_runtime
 
 
 def _create_nn_object(deck, mesh):
@@ -54,21 +54,22 @@ def _create_nn_object(deck, mesh):
                     eps=deck.ctrl.epsilon,
                     tensorboard=deck.ctrl.tensorboard,
                     interval=deck.ctrl.interval,
-                    gpu=deck.ctrl.gpu)
+                    gpu=deck.ctrl.gpu,
+                    ahistory=deck.ctrl.ahistory,
+                    hinterval=deck.ctrl.hinterval)
     return nn_solver
 
 
 def _run_nn(deck, mesh):
     nn_solver = _create_nn_object(deck, mesh)
-    loss_history, spatial_loss, train_time = \
-        _train_nn(deck.ctrl.out, nn_solver)
+    train_result, train_time = _train_nn(deck.ctrl.out, nn_solver)
     flux, pred_time = _predict_nn(nn_solver)
 
     if deck.ctrl.write_nn:
         with open(f'{deck.ctrl.out}.nn.pkl', 'wb') as f:
             pickle.dump(nn_solver, f)
 
-    return flux, loss_history, spatial_loss, train_time, pred_time
+    return flux, train_result, train_time, pred_time
 
 
 def _run_mc(deck, mesh):
@@ -144,16 +145,24 @@ def _set_seed(deck):
     torch.manual_seed(deck.ctrl.seed)
 
 
-def _output_result(deck, mesh, nn_flux, nn_loss, nn_spatial_loss, train_time,
-                   pred_time, tally, mc_time, sn_result, sn_time):
+def _output_result(deck, mesh,
+                   nn_flux, train_result, train_time, pred_time,
+                   tally, mc_time,
+                   sn_result, sn_time):
+
     number_of_algorithms = sum([deck.ctrl.nn, deck.ctrl.mc, deck.ctrl.sn])
     output = {'edge': mesh.edge}
     if number_of_algorithms == 1:
         if deck.ctrl.nn:
             output['algorithm'] = 'nn'
             output['flux'] = nn_flux
-            output['loss'] = nn_loss
-            output['spatial_loss'] = nn_spatial_loss
+            output['loss'] = train_result['loss_history']
+            output['spatial_loss'] = train_result['spatial_loss']
+            if deck.ctrl.ahistory:
+                output['flux_history'] = train_result['flux_history']
+                output['spatial_loss_history'] = \
+                    train_result['spatial_loss_history']
+                output['hinterval'] = deck.ctrl.hinterval
             output['train_time'] = train_time
             output['pred_time'] = pred_time
         if deck.ctrl.mc:
@@ -167,8 +176,13 @@ def _output_result(deck, mesh, nn_flux, nn_loss, nn_spatial_loss, train_time,
     elif number_of_algorithms > 1:
         if deck.ctrl.nn:
             output['nn_flux'] = nn_flux
-            output['loss'] = nn_loss
-            output['spatial_loss'] = nn_spatial_loss
+            output['loss'] = train_result['loss_history']
+            output['spatial_loss'] = train_result['spatial_loss']
+            if deck.ctrl.ahistory:
+                output['nn_flux_history'] = train_result['flux_history']
+                output['spatial_loss_history'] = \
+                    train_result['spatial_loss_history']
+                output['hinterval'] = deck.ctrl.hinterval
             output['train_time'] = train_time
             output['pred_time'] = pred_time
         if deck.ctrl.mc:
@@ -218,18 +232,20 @@ def run(deck, mesh):
     _write_input(deck.yamlinput)
     _set_seed(deck)
 
-    nn_flux = nn_loss = nn_spatial_loss = train_time = pred_time = tally \
-            = mc_time = sn_result = sn_time = None
+    nn_flux = train_result = train_time = pred_time = None
+    tally = mc_time = None
+    sn_result = sn_time = None
     if deck.ctrl.nn:
-        nn_flux, nn_loss, nn_spatial_loss, train_time, pred_time = \
-                _run_nn(deck, mesh)
+        nn_flux, train_result, train_time, pred_time = _run_nn(deck, mesh)
     if deck.ctrl.mc:
         tally, mc_time = _run_mc(deck, mesh)
     if deck.ctrl.sn:
         sn_result, sn_time = _run_sn(deck, mesh)
 
-    _output_result(deck, mesh, nn_flux, nn_loss, nn_spatial_loss, train_time,
-                   pred_time, tally, mc_time, sn_result, sn_time)
+    _output_result(deck, mesh,
+                   nn_flux, train_result, train_time, pred_time,
+                   tally, mc_time,
+                   sn_result, sn_time)
 
     write('terse', '')
     write('terse', 'Narrows is finished.')

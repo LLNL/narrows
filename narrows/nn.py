@@ -18,7 +18,7 @@ class ANNSlabSolver(object):
     def __init__(self, N, n_nodes, edges, sigma_t, sigma_s0, sigma_s1, source,
                  gamma_l=50, gamma_r=50, learning_rate=1e-3, eps=1e-8,
                  use_weights=False, tensorboard=False, interval=500,
-                 gpu=False):
+                 gpu=False, ahistory=False, hinterval=1):
         """
         Parameters
         ==========
@@ -52,6 +52,10 @@ class ANNSlabSolver(object):
             Interval at which loss is printed.
         gpu : bool
             Run on gpu
+        ahistory : bool
+            Record loss and flux arrays every hinterval iterations
+        hinterval : int
+            The number of interations between recordings
         """
 
         self.device = torch.device('cpu')
@@ -141,6 +145,10 @@ class ANNSlabSolver(object):
 
         self.interval = interval
 
+        self.ahistory = ahistory
+
+        self.hinterval = hinterval
+
     def _build_model(self, summary_writer=None):
         """
         Build neural network model.
@@ -212,8 +220,13 @@ class ANNSlabSolver(object):
         """
 
         loss_history = np.zeros(num_iterations_estimate)
-        prev_loss = 1e6
 
+        if self.ahistory:
+            shape = (num_iterations_estimate // self.hinterval, len(self.z))
+            spatial_loss_history = np.zeros(shape)
+            flux_history = np.zeros(shape)
+
+        prev_loss = 1e6
         it = 0
         while True:
             # First, compute the estimate, which is known as the forward pass
@@ -226,6 +239,12 @@ class ANNSlabSolver(object):
             # Inspect the value of the loss
             if it % self.interval == 0:
                 write('moderate', f'Iter {it}: {loss.item()}')
+
+            if self.ahistory and (it % self.hinterval == 0):
+                recording_num = it // self.hinterval
+                spatial_loss_history[recording_num] = spatial_loss
+                flux_history[recording_num] = self._compute_scalar_flux(
+                        psi=y_pred, numpy=True)
 
             self.optimizer.zero_grad()
 
@@ -245,9 +264,17 @@ class ANNSlabSolver(object):
                 break
             it += 1
 
-        return np.trim_zeros(loss_history), spatial_loss
+        result = {'loss_history': np.trim_zeros(loss_history),
+                  'spatial_loss': spatial_loss}
 
-    def _compute_scalar_flux(self, z=None, psi=None, done_training=False):
+        if self.ahistory:
+            size = it // self.hinterval
+            result['spatial_loss_history'] = spatial_loss_history[:size]
+            result['flux_history'] = flux_history[:size]
+
+        return result
+
+    def _compute_scalar_flux(self, z=None, psi=None, numpy=False):
         """
         Compute the scalar flux at points z.
 
@@ -269,7 +296,7 @@ class ANNSlabSolver(object):
 
         phi_0 = torch.matmul(psi, self.w_t)
 
-        if done_training:
+        if numpy:
             if self.gpu:
                 return phi_0.detach().to('cpu').numpy()
             else:
@@ -295,8 +322,8 @@ class ANNSlabSolver(object):
 
         # Use the existing spatial values if none are provided
         if z is None:
-            return self._compute_scalar_flux(z=self.z_t, done_training=True)
+            return self._compute_scalar_flux(z=self.z_t, numpy=True)
 
         # Otherwise, compute flux on the new spatial values
         arg = torch.tensor(z[:, None], device=self.device)
-        return self._compute_scalar_flux(z=arg, done_training=True)
+        return self._compute_scalar_flux(z=arg, numpy=True)

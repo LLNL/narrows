@@ -74,6 +74,8 @@ class _Ctrl():
                  interval=500,
                  gpu=False,
                  write_nn=False,
+                 ahistory=False,
+                 hinterval=1,
                  sn_epsilon=1e-6,
                  num_particles=1e6,
                  max_num_segments=100,
@@ -95,6 +97,8 @@ class _Ctrl():
         self.interval = int(interval)
         self.gpu = bool(gpu)
         self.write_nn = bool(write_nn)
+        self.ahistory = bool(ahistory)
+        self.hinterval = int(hinterval)
         self.sn_epsilon = float(sn_epsilon)
         self.num_particles = int(num_particles)
         self.max_num_segments = int(max_num_segments)
@@ -120,6 +124,8 @@ class _Ctrl():
         assert self.gamma_r > 0, 'gamma_r must be > 0'
 
         assert self.interval > 0, 'interval must be > 0'
+
+        assert self.hinterval > 0, 'hinterval must be > 0'
 
         assert self.sn_epsilon > 0, 'sn_epsilon must be > 0'
 
