@@ -212,7 +212,12 @@ class ANNSlabSolver(object):
         loss += (0.5 * self.gamma_r *
                  ((y_pred[-1, :self.N//2])**2).sum().reshape(1))
 
-        return torch.sum(loss), spatial_loss.detach().numpy()
+        if self.gpu:
+            sloss = spatial_loss.detach().to('cpu').numpy()
+        else:
+            sloss = spatial_loss.detach().numpy()
+
+        return torch.sum(loss), sloss
 
     def train(self, num_iterations_estimate=2**20):
         """
