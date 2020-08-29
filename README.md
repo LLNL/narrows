@@ -34,7 +34,7 @@ paper:
 
  * Michael M. Pozulp.
    [**1D Transport Using Neural Nets, SN, and MC**](http://mike.pozulp.com/2019nnPaper.pdf).
-   In *Proceedings of M&C 2019*, 2160-2165. Portland, Oregon, August 25-29, 2019. LLNL-CONF-772639.
+   In *Proceedings of M&C 2019*, 876-885. Portland, Oregon, August 25-29, 2019. LLNL-CONF-772639.
 
 License
 -------
