@@ -26,8 +26,6 @@ from utility import (  # noqa: E402
     show_or_save
 )
 
-plt.style.use(f'{MY_DIR}/style.mplstyle')
-
 QUANTS = ['flux', 're', 'time', 'loss', 'fluxloss']
 
 
@@ -87,7 +85,8 @@ def print_algorithm2pair(args, algorithm2pair, suffix):
             print()
 
 
-def plot_movie(args, npzfile):
+def plot_movie(args, npzfile, loss_limits=None, flux_limits=None, title=None,
+               legend_loc=None):
     plotname = 'flux'
     algorithm2z_flux_pair = get_algorithm2z_flux_pair(npzfile)
     (nn_z, _) = algorithm2z_flux_pair['nn']
@@ -98,14 +97,20 @@ def plot_movie(args, npzfile):
     else:
         nn_flux_history = npzfile['nn_flux_history']
 
-    max_flux = max([nn_flux_history.max()] +
-                   [x[1].max() for x in algorithm2z_flux_pair.values()])
-    min_flux = min([nn_flux_history.min()] +
-                   [x[1].max() for x in algorithm2z_flux_pair.values()])
+    if flux_limits:
+        min_flux, max_flux = flux_limits
+    else:
+        min_flux = min([nn_flux_history.min()] +
+                       [x[1].max() for x in algorithm2z_flux_pair.values()])
+        max_flux = max([nn_flux_history.max()] +
+                       [x[1].max() for x in algorithm2z_flux_pair.values()])
 
     spatial_loss_history = npzfile['spatial_loss_history']
-    max_loss = spatial_loss_history.max()
-    min_loss = spatial_loss_history.min()
+    if loss_limits:
+        min_loss, max_loss = loss_limits
+    else:
+        min_loss = spatial_loss_history.min()
+        max_loss = spatial_loss_history.max()
 
     max_it = len(npzfile['loss'])
     max_num_digits = len(str(max_it))
@@ -136,9 +141,15 @@ def plot_movie(args, npzfile):
         ax2.semilogy(nn_z, spatial_loss, color='r')
         ax2.tick_params(axis='y', labelcolor='r')
 
-        ax1.legend(loc='upper right')
+        if legend_loc:
+            ax1.legend(loc=legend_loc)
+        else:
+            ax1.legend(loc='upper right')
 
-        plt.title(f'{args.problem} {plotname}')
+        if title:
+            plt.title(title)
+        else:
+            plt.title(f'{args.problem} {plotname}')
         show_or_save(args.show, args.problem, f'{plotname}_{zero_padded_it}')
         ax1.clear()
         ax2.clear()
@@ -236,6 +247,8 @@ def parse_args(argv=None):
     parser.add_argument('-m', '--movie',
                         action='store_true',
                         help='make a convergence movie')
+    parser.add_argument('-f', '--style',
+                        help='matplotlib style file')
     parser.add_argument('-s', '--show',
                         action='store_true',
                         help='show instead of save plot')
@@ -248,6 +261,11 @@ def parse_args(argv=None):
 
 def main(argv=None):
     args = parse_args(argv)
+    if args.style:
+        plt.style.use(args.style)
+    else:
+        plt.style.use(f'{MY_DIR}/style.mplstyle')
+
     npzfile = np.load(f'{args.problem}.npz')
     if args.movie:
         plot_movie(args, npzfile)
