@@ -185,6 +185,30 @@ class ANNSlabSolver(object):
 
         return torch.sum(loss), sloss
 
+    def _record_history(self, recording_index, spatial_loss, y_pred,
+                        spatial_loss_history, flux_history):
+        '''
+        Write history to arrays
+
+        Parameters
+        ==========
+        recording_index : int
+            The index of this recording.
+        spatial_loss : array-like, shape (n_points_z)
+            The spatial distribution of the loss.
+        y_pred : torch tensor, shape (n_points_z, num_ordinates)
+            Angular flux estimate
+        spatial_loss_history : array-like, shape (E, n_points_z) where E is an
+                               estimate of the total number of recordings
+            The spatial loss at each recorded iteration.
+        flux_history : array-like, shape (E, n_points_z) where E is an
+                       estimate of the total number of recordings
+            The flux at each recorded iteration.
+        '''
+        spatial_loss_history[recording_index] = spatial_loss
+        flux_history[recording_index] = self._compute_scalar_flux(
+                psi=y_pred, numpy=True)
+
     def train(self, num_iterations_estimate=2**20):
         '''
         Train the neural network.
@@ -193,29 +217,36 @@ class ANNSlabSolver(object):
         loss_history = np.zeros(num_iterations_estimate)
 
         if self.ahistory:
-            shape = (num_iterations_estimate // self.hinterval, len(self.z))
+            num_recordings_estimate = (num_iterations_estimate //
+                                       self.hinterval)
+            num_recordings_estimate += 2  # First and last iteration
+            shape = (num_recordings_estimate, len(self.z))
             spatial_loss_history = np.zeros(shape)
             flux_history = np.zeros(shape)
 
         prev_loss = LARGE_DOUBLE
-        it = 0
+        iteration_index = 0
         while True:
             # First, compute the estimate, which is known as the forward pass
             y_pred = self.model(self.z)
 
             # Compute the loss between the prediction and true value
             loss, spatial_loss = self._loss(y_pred, self.z)
-            loss_history[it] = loss
+            loss_history[iteration_index] = loss
 
-            # Inspect the value of the loss
-            if it % self.interval == 0:
-                write('moderate', f'Iter {it}: {loss.item()}')
+            if iteration_index % self.interval == 0:
+                write('moderate', f'Iter {iteration_index}: {loss.item()}')
+                loss_was_printed = True
+            else:
+                loss_was_printed = False
 
-            if self.ahistory and (it % self.hinterval == 0):
-                recording_num = it // self.hinterval
-                spatial_loss_history[recording_num] = spatial_loss
-                flux_history[recording_num] = self._compute_scalar_flux(
-                        psi=y_pred, numpy=True)
+            if self.ahistory and (iteration_index % self.hinterval == 0):
+                recording_index = iteration_index // self.hinterval
+                self._record_history(recording_index, spatial_loss, y_pred,
+                                     spatial_loss_history, flux_history)
+                history_was_recorded = True
+            else:
+                history_was_recorded = False
 
             self.optimizer.zero_grad()
 
@@ -231,15 +262,20 @@ class ANNSlabSolver(object):
             prev_loss = loss
 
             if err < self.eps:
-                write('moderate', f'Iter {it}: {loss}')
+                if not loss_was_printed:
+                    write('moderate', f'Iter {iteration_index}: {loss}')
+                if self.ahistory and not history_was_recorded:
+                    recording_index = (iteration_index // self.hinterval) + 1
+                    self._record_history(recording_index, spatial_loss, y_pred,
+                                         spatial_loss_history, flux_history)
                 break
-            it += 1
+            iteration_index += 1
 
         result = {'loss_history': np.trim_zeros(loss_history),
                   'spatial_loss': spatial_loss}
 
         if self.ahistory:
-            size = it // self.hinterval
+            size = (iteration_index // self.hinterval) + 2
             result['spatial_loss_history'] = spatial_loss_history[:size]
             result['flux_history'] = flux_history[:size]
 

@@ -107,15 +107,20 @@ def plot_movie(args, npzfile):
     max_loss = spatial_loss_history.max()
     min_loss = spatial_loss_history.min()
 
-    max_it = nn_flux_history.shape[0] * npzfile['hinterval']
+    max_it = len(npzfile['loss'])
     max_num_digits = len(str(max_it))
+
+    num_recordings = len(nn_flux_history)
 
     fig, ax1 = plt.subplots()
     ax2 = ax1.twinx()
     for index, (nn_flux, spatial_loss) in enumerate(
             zip(nn_flux_history, spatial_loss_history)):
 
-        it = index * npzfile['hinterval']
+        if index == (num_recordings - 1):
+            it = max_it
+        else:
+            it = index * npzfile['hinterval']
         zero_padded_it = f'{it:0{max_num_digits}}'
 
         ax1.set_ylim(ymin=min_flux, ymax=max_flux)
