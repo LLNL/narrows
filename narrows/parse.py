@@ -76,11 +76,12 @@ class _Ctrl():
                  write_nn=False,
                  ahistory=False,
                  hinterval=1,
+                 max_num_iter=100000,
                  sn_epsilon=1e-6,
                  num_particles=1e6,
                  max_num_segments=100,
                  seed=0,
-                 max_num_iter=300,
+                 max_num_src_iter=300,
                  out='',
                  verb='moderate'):
         self.ordinates = int(ordinates)
@@ -99,11 +100,12 @@ class _Ctrl():
         self.write_nn = bool(write_nn)
         self.ahistory = bool(ahistory)
         self.hinterval = int(hinterval)
+        self.max_num_iter = int(max_num_iter)
         self.sn_epsilon = float(sn_epsilon)
         self.num_particles = int(num_particles)
         self.max_num_segments = int(max_num_segments)
         self.seed = int(seed)
-        self.max_num_iter = int(max_num_iter)
+        self.max_num_src_iter = int(max_num_src_iter)
         self.out = str(out)
         self.verb = str(verb)
 
@@ -127,13 +129,15 @@ class _Ctrl():
 
         assert self.hinterval > 0, 'hinterval must be > 0'
 
+        assert self.max_num_iter > 0, 'max_num_iter must be > 0'
+
         assert self.sn_epsilon > 0, 'sn_epsilon must be > 0'
 
         assert self.num_particles > 0, 'num_particles must be > 0'
 
         assert self.max_num_segments > 0, 'max_num_segments must be > 0'
 
-        assert self.max_num_iter > 0, 'max_num_iter must be > 0'
+        assert self.max_num_src_iter > 0, 'max_num_src_iter must be > 0'
 
         keys = ' '.join(writer.verb2int.keys())
         assert self.verb in writer.verb2int, f'verb should be one of: {keys}'

@@ -15,7 +15,7 @@ class ANNSlabSolver(object):
     def __init__(self, N, n_nodes, edges, sigma_t, sigma_s0, sigma_s1, source,
                  gamma_l=50, gamma_r=50, learning_rate=1e-3, eps=1e-8,
                  tensorboard=False, interval=500, gpu=False, ahistory=False,
-                 hinterval=1):
+                 hinterval=1, max_num_iter=100000):
         '''
         Parameters
         ==========
@@ -51,6 +51,8 @@ class ANNSlabSolver(object):
             Record loss and flux arrays every hinterval iterations
         hinterval : int
             The number of interations between recordings
+        max_num_iter : int
+            The maximum number of iterations before we quit trying to converge
         '''
 
         self.device = torch.device('cpu')
@@ -127,6 +129,8 @@ class ANNSlabSolver(object):
         self.ahistory = ahistory
 
         self.hinterval = hinterval
+
+        self.max_num_iter = max_num_iter
 
     def _build_model(self, summary_writer=None):
         '''
@@ -261,13 +265,15 @@ class ANNSlabSolver(object):
             err = np.abs(loss - prev_loss)
             prev_loss = loss
 
-            if err < self.eps:
+            if err < self.eps or iteration_index == self.max_num_iter:
                 if not loss_was_printed:
                     write('moderate', f'Iter {iteration_index}: {loss}')
                 if self.ahistory and not history_was_recorded:
                     recording_index = (iteration_index // self.hinterval) + 1
                     self._record_history(recording_index, spatial_loss, y_pred,
                                          spatial_loss_history, flux_history)
+                if iteration_index == self.max_num_iter:
+                    write('terse', 'Maximum number of iterations achieved')
                 break
             iteration_index += 1
 

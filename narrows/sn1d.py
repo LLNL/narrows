@@ -85,7 +85,7 @@ def _sweep(psi, mu, edges, Qhat, sigma_t, alpha=0):
 
 
 def main(edges, sigma_t, sigma_s0, sigma_s1, source, ordinates, sn_epsilon,
-         max_num_iter):
+         max_num_src_iter):
 
     # NxJ
     Q = np.repeat(source[np.newaxis, :], ordinates, axis=0)
@@ -111,7 +111,7 @@ def main(edges, sigma_t, sigma_s0, sigma_s1, source, ordinates, sn_epsilon,
     i = 1
     I0s = [I0]
     I1s = [I1]
-    while not _converged(I0, old_I0, sn_epsilon, i) and i < max_num_iter:
+    while not _converged(I0, old_I0, sn_epsilon, i) and i < max_num_src_iter:
         old_I0 = I0.copy()
         i += 1
 
@@ -124,9 +124,9 @@ def main(edges, sigma_t, sigma_s0, sigma_s1, source, ordinates, sn_epsilon,
         I1s.append(I1)
         _dump(mu, weight, Q, Qhat, I0, I1, psi, edges)
 
-    if i == max_num_iter:
-        write('terse', f'Warning: Max num iterations: {max_num_iter} achieved '
-                       f'before convergence.')
+    if i == max_num_src_iter:
+        write('terse', f'Warning: Max num iterations: {max_num_src_iter} '
+                       f'achieved before convergence.')
 
     Result = collections.namedtuple('Result',
                                     'edges psi I0 I1 weight mu i')

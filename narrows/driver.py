@@ -56,7 +56,8 @@ def _create_nn_object(deck, mesh):
                     interval=deck.ctrl.interval,
                     gpu=deck.ctrl.gpu,
                     ahistory=deck.ctrl.ahistory,
-                    hinterval=deck.ctrl.hinterval)
+                    hinterval=deck.ctrl.hinterval,
+                    max_num_iter=deck.ctrl.max_num_iter)
     return nn_solver
 
 
@@ -96,7 +97,7 @@ def _run_sn(deck, mesh):
                       mesh.source.to_numpy(),
                       deck.ctrl.ordinates,
                       deck.ctrl.sn_epsilon,
-                      deck.ctrl.max_num_iter)
+                      deck.ctrl.max_num_src_iter)
     runtime = time.time() - start
     return result, runtime
 
